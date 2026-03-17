@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "NODE_ENV=production node dist/index.cjs"
+healthcheckPath = "/api/session/health"
+restartPolicyType = "on_failure"

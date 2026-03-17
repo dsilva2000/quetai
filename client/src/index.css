@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* QUETAI — Paleta cálida, acogedora, para adultos mayores */
+  /* Tonos: crema suave, durazno cálido, verde salud, marrón tierra */
+
+  :root {
+    /* Superficies — crema y beige cálido */
+    --background: 36 28% 96%;          /* crema muy suave */
+    --foreground: 22 30% 18%;          /* marrón oscuro legible */
+    --card: 36 25% 98%;
+    --card-foreground: 22 30% 18%;
+    --popover: 36 25% 98%;
+    --popover-foreground: 22 30% 18%;
+
+    /* Acento principal — verde suave wellness */
+    --primary: 152 38% 36%;            /* verde salvia */
+    --primary-foreground: 36 25% 98%;
+
+    /* Secundario — durazno cálido */
+    --secondary: 28 45% 92%;
+    --secondary-foreground: 22 30% 28%;
+
+    /* Muted — beige neutro */
+    --muted: 36 18% 90%;
+    --muted-foreground: 22 12% 52%;
+
+    /* Accent — terracota suave */
+    --accent: 18 42% 88%;
+    --accent-foreground: 18 50% 32%;
+
+    /* Estados */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 36 25% 98%;
+    --border: 36 14% 84%;
+    --input: 36 14% 84%;
+    --ring: 152 38% 36%;
+
+    --radius: 1rem;
+
+    /* Sombra acogedora */
+    --shadow-chat: 0 2px 16px rgba(120, 80, 40, 0.08);
+
+    /* Fuentes */
+    --font-sans: 'Nunito', 'Helvetica Neue', sans-serif;
+    --font-serif: 'Georgia', serif;
+    --font-mono: 'Courier New', monospace;
+
+    /* Variables adicionales que usan los componentes shadcn */
+    --card-border: 36 14% 84%;
+    --popover-border: 36 14% 84%;
+    --primary-border: hsl(152, 35%, 30%);
+    --secondary-border: hsl(28, 40%, 80%);
+    --muted-border: hsl(36, 14%, 82%);
+    --accent-border: hsl(18, 38%, 78%);
+    --destructive-border: hsl(0, 65%, 45%);
+
+    /* Chart colors */
+    --chart-1: 152 38% 36%;
+    --chart-2: 28 45% 60%;
+    --chart-3: 18 42% 55%;
+    --chart-4: 200 50% 45%;
+    --chart-5: 280 40% 55%;
+
+    /* Sidebar */
+    --sidebar: 36 25% 97%;
+    --sidebar-foreground: 22 30% 18%;
+    --sidebar-border: 36 14% 84%;
+    --sidebar-ring: 152 38% 36%;
+    --sidebar-primary: 152 38% 36%;
+    --sidebar-primary-foreground: 36 25% 98%;
+    --sidebar-accent: 28 45% 92%;
+    --sidebar-accent-foreground: 22 30% 28%;
+    --sidebar-primary-border: hsl(152, 35%, 30%);
+    --sidebar-accent-border: hsl(28, 40%, 80%);
+  }
+
+  .dark {
+    --background: 22 25% 10%;
+    --foreground: 36 20% 88%;
+    --card: 22 22% 13%;
+    --card-foreground: 36 20% 88%;
+    --popover: 22 22% 13%;
+    --popover-foreground: 36 20% 88%;
+    --primary: 152 35% 52%;
+    --primary-foreground: 22 25% 10%;
+    --secondary: 22 18% 20%;
+    --secondary-foreground: 36 20% 78%;
+    --muted: 22 15% 18%;
+    --muted-foreground: 36 12% 56%;
+    --accent: 18 30% 22%;
+    --accent-foreground: 18 40% 72%;
+    --destructive: 0 60% 52%;
+    --destructive-foreground: 36 20% 98%;
+    --border: 22 15% 22%;
+    --input: 22 15% 22%;
+    --ring: 152 35% 52%;
+
+    --card-border: 22 15% 22%;
+    --popover-border: 22 15% 22%;
+    --primary-border: hsl(152, 30%, 45%);
+    --secondary-border: hsl(22, 15%, 28%);
+    --muted-border: hsl(22, 12%, 26%);
+    --accent-border: hsl(18, 25%, 30%);
+    --destructive-border: hsl(0, 55%, 45%);
+
+    --chart-1: 152 35% 52%;
+    --chart-2: 28 40% 60%;
+    --chart-3: 18 35% 58%;
+    --chart-4: 200 45% 55%;
+    --chart-5: 280 38% 62%;
+
+    --sidebar: 22 22% 12%;
+    --sidebar-foreground: 36 20% 85%;
+    --sidebar-border: 22 15% 22%;
+    --sidebar-ring: 152 35% 52%;
+    --sidebar-primary: 152 35% 52%;
+    --sidebar-primary-foreground: 22 25% 10%;
+    --sidebar-accent: 22 18% 20%;
+    --sidebar-accent-foreground: 36 20% 78%;
+    --sidebar-primary-border: hsl(152, 30%, 45%);
+    --sidebar-accent-border: hsl(22, 15%, 28%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Nunito', 'Helvetica Neue', sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+}
+
+/* Burbuja de chat del usuario */
+.bubble-user {
+  background: hsl(152, 38%, 36%);
+  color: white;
+  border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+  padding: 0.75rem 1.1rem;
+  max-width: 78%;
+  word-break: break-word;
+  line-height: 1.55;
+  font-size: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* Burbuja del asistente QUETAI */
+.bubble-assistant {
+  background: hsl(36, 25%, 98%);
+  color: hsl(22, 30%, 18%);
+  border: 1px solid hsl(36, 14%, 88%);
+  border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
+  padding: 0.75rem 1.1rem;
+  max-width: 82%;
+  word-break: break-word;
+  line-height: 1.6;
+  font-size: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.dark .bubble-assistant {
+  background: hsl(22, 22%, 16%);
+  color: hsl(36, 20%, 85%);
+  border-color: hsl(22, 15%, 24%);
+}
+
+/* Animación de typing dots */
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+.typing-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(152, 38%, 46%);
+  animation: bounce 1.2s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Scrollbar elegante */
+.chat-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: hsl(36, 14%, 82%);
+  border-radius: 999px;
+}
+
+/* Animación entrada de mensaje */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-enter {
+  animation: slideIn 0.25s ease-out forwards;
+}
+
+/* Tag de medicamento */
+.med-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: hsl(152, 35%, 92%);
+  color: hsl(152, 45%, 28%);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.dark .med-tag {
+  background: hsl(152, 25%, 18%);
+  color: hsl(152, 35%, 68%);
+}
