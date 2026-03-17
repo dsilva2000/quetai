@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, API_BASE } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -247,7 +247,7 @@ export default function ChatPage() {
 
   // Cargar sesión al inicio
   useEffect(() => {
-    fetch(`/api/session/${sessionId}`)
+    fetch(`${API_BASE}/api/session/${sessionId}`)
       .then(r => r.json())
       .then(data => {
         if (data.existe) {
@@ -260,7 +260,7 @@ export default function ChatPage() {
   // Cargar historial de mensajes
   useEffect(() => {
     if (!nombreUsuario) return;
-    fetch(`/api/session/${sessionId}/mensajes`)
+    fetch(`${API_BASE}/api/session/${sessionId}/mensajes`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
@@ -298,7 +298,7 @@ export default function ChatPage() {
     setMensajes([nuevoMensaje]);
 
     // Guardar en backend
-    await fetch(`/api/session/${sessionId}/mensajes`);
+    await fetch(`${API_BASE}/api/session/${sessionId}/mensajes`);
     // El saludo inicial se enviará como primer mensaje real del asistente
   }, [nombreUsuario, sessionId]);
 
@@ -321,7 +321,7 @@ export default function ChatPage() {
     setMensajes(prev => [...prev, msgUsuario]);
 
     try {
-      const response = await fetch(`/api/session/${sessionId}/chat`, {
+      const response = await fetch(`${API_BASE}/api/session/${sessionId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mensaje: texto }),
