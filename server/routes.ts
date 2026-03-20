@@ -162,7 +162,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
 
     try {
       const stream = await openai.chat.completions.create({
-        model: "gemini-2.0-flash",
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: conv },
