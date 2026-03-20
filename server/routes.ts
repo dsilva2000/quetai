@@ -7,6 +7,9 @@ const openai = new OpenAI();
 
 // PIN de administrador — en producción usar variable de entorno
 const ADMIN_PIN = process.env.ADMIN_PIN || "1234";
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
+// Voz en español cálida — Rachel (multilingual) o puedes cambiar por otra
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
 
 // ─── System prompt ─────────────────────────────────────────────────────────────
 function buildSystemPrompt(
@@ -198,6 +201,42 @@ export function registerRoutes(_httpServer: Server, app: Express) {
       res.write(`data: ${JSON.stringify({ token: fb })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: meds })}\n\n`);
       res.end();
+    }
+  });
+
+  // ── TTS: texto a voz con ElevenLabs ──────────────────────────────
+  app.post("/api/tts", async (req, res) => {
+    const { texto } = req.body;
+    if (!texto?.trim()) return res.status(400).json({ error: "texto vacío" });
+    if (!ELEVENLABS_API_KEY) return res.status(503).json({ error: "TTS no configurado" });
+
+    try {
+      const elevenRes = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,
+        {
+          method: "POST",
+          headers: {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: texto.trim(),
+            model_id: "eleven_multilingual_v2",
+            voice_settings: { stability: 0.55, similarity_boost: 0.80, style: 0.15, use_speaker_boost: true },
+          }),
+        }
+      );
+      if (!elevenRes.ok) {
+        console.error("ElevenLabs error:", await elevenRes.text());
+        return res.status(503).json({ error: "Error TTS" });
+      }
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "no-cache");
+      const buf = await elevenRes.arrayBuffer();
+      res.send(Buffer.from(buf));
+    } catch (err: any) {
+      console.error("TTS error:", err?.message);
+      res.status(503).json({ error: "Error TTS" });
     }
   });
 
