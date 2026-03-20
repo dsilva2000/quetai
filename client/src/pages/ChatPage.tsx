@@ -100,8 +100,8 @@ export default function ChatPage() {
   // Registrar usuario en onboarding
   const registrar = async () => {
     const n = inputNombre.trim();
-    if (!n || n.split(" ").length < 2) {
-      toast({ title: "Por favor escribe tu nombre y apellido.", variant: "destructive" });
+    if (!n || n.length < 2) {
+      toast({ title: "Por favor escribe tu nombre.", variant: "destructive" });
       return;
     }
     const res = await fetch(`${API_BASE}/api/session/${sessionId}/registro`, {
