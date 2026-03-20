@@ -161,34 +161,22 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     let respuestaCompleta = "";
 
     try {
-      const stream = await openai.responses.create({
-        model: "gemini_3_flash",
-        instructions: systemPrompt,
-        input: conv,
+      const stream = await openai.chat.completions.create({
+        model: "gemini-2.0-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: conv },
+        ],
         stream: true,
-      } as any);
+        max_tokens: 300,
+        temperature: 0.8,
+      });
 
-      for await (const event of stream as any) {
-        const delta =
-          event?.delta?.output_text ||
-          event?.output_text_delta ||
-          (event?.type === "response.output_text.delta" ? event.delta : null);
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
         if (delta && typeof delta === "string") {
           respuestaCompleta += delta;
           res.write(`data: ${JSON.stringify({ token: delta })}\n\n`);
-        }
-      }
-
-      if (!respuestaCompleta) {
-        const r = await openai.responses.create({
-          model: "gemini_3_flash",
-          instructions: systemPrompt,
-          input: conv,
-        } as any);
-        const texto = (r as any)?.output_text || "";
-        if (texto) {
-          respuestaCompleta = texto;
-          res.write(`data: ${JSON.stringify({ token: texto })}\n\n`);
         }
       }
 
