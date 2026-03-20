@@ -104,54 +104,55 @@ export default function ChatPage() {
     setMensajes([msg]);
   }, []);
 
-  // ── TTS con ElevenLabs ───────────────────────────────────────────────────────
+  // ── TTS — ElevenLabs directo desde el browser ────────────────────────────────
+  const ELEVEN_KEY = "131d240b7c0b6c5e5d7b079f97dbd5bcb8615a3a73a3880d846eddd21187a9ea";
+  const ELEVEN_VOICE = "EXAVITQu4vr4xnSDxMaL"; // Sarah — premade, gratis
+
   const hablarTexto = useCallback(async (texto: string) => {
     if (vozSilenciada) return;
-    // Limpiar asteriscos y emojis para voz más natural
-    const textoLimpio = texto.replace(/[*_~`]/g, "").replace(/[\u{1F600}-\u{1F6FF}]/gu, "").trim();
+    const textoLimpio = texto.replace(/[*_~`]/g, "").replace(/\p{Emoji}/gu, "").trim();
     if (!textoLimpio) return;
+    setHablando(true);
 
-    try {
-      setHablando(true);
-      const resp = await fetch(`${API_BASE}/api/tts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: textoLimpio }),
-      });
-      if (!resp.ok) throw new Error("TTS error");
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => {
-        setHablando(false);
-        URL.revokeObjectURL(url);
-        if (modoVoz) iniciarEscucha();
-      };
-      audio.onerror = () => { setHablando(false); if (modoVoz) iniciarEscucha(); };
-      await audio.play();
-    } catch {
-      setHablando(false);
-      // Fallback: SpeechSynthesis del navegador
+    const usarNavegador = () => {
       if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
         const utt = new SpeechSynthesisUtterance(textoLimpio);
-        utt.lang = "es-419";
-        utt.rate = 0.9;
-        utt.pitch = 1.05;
+        utt.lang = "es-419"; utt.rate = 0.88; utt.pitch = 1.05;
         const voices = window.speechSynthesis.getVoices();
         const esVoice = voices.find(v => v.lang.startsWith("es") && v.name.toLowerCase().includes("female"))
           || voices.find(v => v.lang.startsWith("es"));
         if (esVoice) utt.voice = esVoice;
         utt.onend = () => { setHablando(false); if (modoVoz) iniciarEscucha(); };
+        utt.onerror = () => { setHablando(false); if (modoVoz) iniciarEscucha(); };
         window.speechSynthesis.speak(utt);
-      } else {
-        setHablando(false);
-        if (modoVoz) iniciarEscucha();
-      }
+      } else { setHablando(false); if (modoVoz) iniciarEscucha(); }
+    };
+
+    try {
+      const resp = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE}`,
+        {
+          method: "POST",
+          headers: { "xi-api-key": ELEVEN_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: textoLimpio,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: { stability: 0.55, similarity_boost: 0.80, style: 0.10, use_speaker_boost: true },
+          }),
+        }
+      );
+      if (!resp.ok) { usarNavegador(); return; }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      if (audioRef.current) { audioRef.current.pause(); URL.revokeObjectURL(audioRef.current.src); }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setHablando(false); URL.revokeObjectURL(url); if (modoVoz) iniciarEscucha(); };
+      audio.onerror = () => { setHablando(false); usarNavegador(); };
+      await audio.play();
+    } catch {
+      usarNavegador();
     }
   }, [vozSilenciada, modoVoz]);
 
