@@ -1,10 +1,8 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// En Perplexity deployed: __PORT_5000__ se reemplaza con la URL proxy
-// En Railway (standalone): usamos la URL de Railway directamente
-export const API_BASE = "__PORT_5000__".startsWith("__")
-  ? (import.meta.env.VITE_API_URL || "https://quetai-production.up.railway.app")
-  : "__PORT_5000__";
+// URL relativa — el frontend se sirve desde el mismo servidor Railway
+// En dev local usar VITE_API_URL si se necesita apuntar a otro servidor
+export const API_BASE = import.meta.env.VITE_API_URL || "";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
