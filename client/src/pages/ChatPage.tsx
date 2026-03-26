@@ -9,16 +9,35 @@ interface Mensaje { id: number; rol: string; contenido: string; orden: number; }
 interface Medicamento { id: number; nombre: string; horario: string; }
 
 // ─── Session ID via URL hash ───────────────────────────────────────────────────
+const LS_KEY = "quetai_sid";
+
 function getOrCreateSessionId(): string {
+  // 1. Prioridad: sid en la URL (para links guardados o compartidos)
   const hash = window.location.hash;
   const hashSearch = hash.includes("?") ? hash.slice(hash.indexOf("?")) : "";
   const params = new URLSearchParams(hashSearch);
   let sid = params.get("sid");
+
+  if (sid) {
+    // Si viene en URL, sincronizar localStorage
+    localStorage.setItem(LS_KEY, sid);
+  } else {
+    // 2. Intentar recuperar del localStorage (misma sesión al volver)
+    sid = localStorage.getItem(LS_KEY);
+  }
+
   if (!sid) {
+    // 3. Nuevo usuario: crear ID, guardarlo en ambos lugares
     sid = `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    localStorage.setItem(LS_KEY, sid);
+  }
+
+  // Siempre mantener la URL actualizada con el sid
+  if (!params.get("sid")) {
     const newHash = hash.includes("?") ? `${hash}&sid=${sid}` : `${hash || "#/"}?sid=${sid}`;
     window.history.replaceState({}, "", newHash);
   }
+
   return sid;
 }
 
@@ -309,7 +328,7 @@ export default function ChatPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-foreground tracking-tight">QUETAI</h1>
-              <p className="text-xl text-muted-foreground mt-1">Tu amigo de cada día</p>
+              <p className="text-xl text-muted-foreground mt-1">Tu amigo de cada día · <span className="text-base opacity-60">v3.5</span></p>
             </div>
           </div>
 
@@ -521,6 +540,8 @@ export default function ChatPage() {
               className="hover:text-foreground transition-colors">
               Perplexity Computer
             </a>
+            <span>·</span>
+            <span className="opacity-50">v3.5</span>
             <span>·</span>
             <Link href="/admin" className="hover:text-foreground transition-colors flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />Admin
