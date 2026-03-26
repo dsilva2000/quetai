@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE } from "@/lib/queryClient";
-import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, ShieldCheck, Sun, Moon } from "lucide-react";
+import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, ShieldCheck, Sun, Moon, Bell, BellOff } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Link } from "wouter";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -73,6 +74,10 @@ export default function ChatPage() {
 
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // ── Push notifications ───────────────────────────────────────────────────────
+  const { status: pushStatus, suscrito, suscribirse, desuscribirse } = usePushNotifications(sessionId);
+  const [bannerPush, setBannerPush] = useState(true); // mostrar banner de permiso
+
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -390,6 +395,18 @@ export default function ChatPage() {
 
         {/* Controles */}
         <div className="flex items-center gap-2">
+          {/* Notificaciones */}
+          {pushStatus !== "unsupported" && (
+            <button
+              onClick={suscrito ? desuscribirse : suscribirse}
+              title={suscrito ? "Desactivar recordatorios" : "Activar recordatorios"}
+              className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
+                suscrito ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {suscrito ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+            </button>
+          )}
           {/* Silenciar voz */}
           <button
             onClick={() => setVozSilenciada(v => !v)}
@@ -416,6 +433,41 @@ export default function ChatPage() {
           </button>
         </div>
       </header>
+
+      {/* ── Banner notificaciones push ── */}
+      {fase === "chat" && bannerPush && pushStatus === "prompt" && medicamentos.length > 0 && (
+        <div className="mx-4 mt-3 mb-1 rounded-2xl bg-primary/10 border border-primary/20 p-4 flex items-start gap-3 shrink-0">
+          <Bell className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base text-foreground leading-snug">
+              ¿Quieres que te avisemos cuando tomar tus pastillas?
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Te mandamos un recordatorio aunque tengas el celular guardado.
+            </p>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={async () => {
+                  const ok = await suscribirse();
+                  if (ok) setBannerPush(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all active:scale-95"
+              >
+                Sí, avísame 🔔
+              </button>
+              <button
+                onClick={() => setBannerPush(false)}
+                className="px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-all"
+              >
+                Ahora no
+              </button>
+            </div>
+          </div>
+          <button onClick={() => setBannerPush(false)} className="text-muted-foreground hover:text-foreground shrink-0">
+            <BellOff className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── Mensajes ── */}
       <div ref={chatRef} className="flex-1 overflow-y-auto px-4 py-5 space-y-4">

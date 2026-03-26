@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { Server } from "http";
 import OpenAI from "openai";
+import webpush from "web-push";
 import { storage } from "./storage";
 
 const openai = new OpenAI();
@@ -10,6 +11,20 @@ const ADMIN_PIN = process.env.ADMIN_PIN || "1234";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
 // Voz en español cálida — Rachel (multilingual) o puedes cambiar por otra
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+
+// ─── Web Push (VAPID) ─────────────────────────────────────────────────────────
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || "";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "";
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(
+    "mailto:hola@quetai.tech",
+    VAPID_PUBLIC,
+    VAPID_PRIVATE
+  );
+}
+
+// Exponer la clave pública al frontend
+export const vapidPublicKey = VAPID_PUBLIC;
 
 // ─── System prompt ─────────────────────────────────────────────────────────────
 function buildSystemPrompt(
@@ -202,6 +217,38 @@ export function registerRoutes(_httpServer: Server, app: Express) {
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: meds })}\n\n`);
       res.end();
     }
+  });
+
+  // ── Push: clave pública VAPID ────────────────────────────────────
+  app.get("/api/push/vapid-key", (_req, res) => {
+    res.json({ publicKey: VAPID_PUBLIC });
+  });
+
+  // ── Push: guardar suscripción ──────────────────────────────────────
+  app.post("/api/push/subscribe", (req, res) => {
+    const { sessionId, subscription } = req.body;
+    if (!sessionId || !subscription?.endpoint) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+    try {
+      storage.savePushSuscripcion(
+        sessionId,
+        subscription.endpoint,
+        subscription.keys?.p256dh || "",
+        subscription.keys?.auth || ""
+      );
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("Push subscribe error:", err?.message);
+      res.status(500).json({ error: "Error al guardar suscripción" });
+    }
+  });
+
+  // ── Push: eliminar suscripción ─────────────────────────────────────
+  app.post("/api/push/unsubscribe", (req, res) => {
+    const { endpoint } = req.body;
+    if (endpoint) storage.deletePushSuscripcion(endpoint);
+    res.json({ ok: true });
   });
 
   // ── TTS: texto a voz con ElevenLabs ──────────────────────────────

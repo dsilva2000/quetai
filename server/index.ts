@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
+import { iniciarCronRecordatorios } from "./reminders";
 import { createServer } from "http";
 
 const app = express();
@@ -105,6 +106,8 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      // Iniciar cron de recordatorios de medicamentos
+      iniciarCronRecordatorios();
     },
   );
 })();

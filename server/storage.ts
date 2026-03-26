@@ -38,6 +38,23 @@ db.exec(`
     creado_en   TEXT    NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
   );
+
+  CREATE TABLE IF NOT EXISTS push_suscripciones (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT    NOT NULL,
+    endpoint    TEXT    NOT NULL UNIQUE,
+    p256dh      TEXT    NOT NULL,
+    auth        TEXT    NOT NULL,
+    creado_en   TEXT    NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS recordatorios_enviados (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT    NOT NULL,
+    med_id      INTEGER NOT NULL,
+    fecha_hora  TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -130,6 +147,47 @@ export const storage = {
 
   clearMensajes(sessionId: string): void {
     db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
+  },
+
+  // ── Push suscripciones ──────────────────────────────
+  savePushSuscripcion(sessionId: string, endpoint: string, p256dh: string, auth: string): void {
+    db.prepare(`
+      INSERT INTO push_suscripciones (session_id, endpoint, p256dh, auth)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(endpoint) DO UPDATE SET session_id=excluded.session_id, p256dh=excluded.p256dh, auth=excluded.auth
+    `).run(sessionId, endpoint, p256dh, auth);
+  },
+
+  deletePushSuscripcion(endpoint: string): void {
+    db.prepare("DELETE FROM push_suscripciones WHERE endpoint = ?").run(endpoint);
+  },
+
+  getPushSuscripcionesBySession(sessionId: string): { endpoint: string; p256dh: string; auth: string }[] {
+    return (db.prepare("SELECT endpoint, p256dh, auth FROM push_suscripciones WHERE session_id = ?").all(sessionId) as any[]);
+  },
+
+  // Para el cron: obtener todos los medicamentos activos con sus suscripciones
+  getMedicamentosParaRecordatorio(): { sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; endpoint: string; p256dh: string; auth: string }[] {
+    return (db.prepare(`
+      SELECT m.session_id as sessionId, m.id as medId, m.nombre, m.horario,
+             u.nombre as usuarioNombre, p.endpoint, p.p256dh, p.auth
+      FROM medicamentos m
+      JOIN usuarios u ON u.session_id = m.session_id
+      JOIN push_suscripciones p ON p.session_id = m.session_id
+      WHERE m.activo = 1
+    `).all() as any[]);
+  },
+
+  yaSeEnvioRecordatorio(sessionId: string, medId: number, fechaHora: string): boolean {
+    const row = db.prepare(`
+      SELECT id FROM recordatorios_enviados
+      WHERE session_id = ? AND med_id = ? AND strftime('%Y-%m-%d %H:%M', fecha_hora) = ?
+    `).get(sessionId, medId, fechaHora) as any;
+    return !!row;
+  },
+
+  registrarRecordatorioEnviado(sessionId: string, medId: number): void {
+    db.prepare("INSERT INTO recordatorios_enviados (session_id, med_id) VALUES (?, ?)").run(sessionId, medId);
   },
 
   // ── Admin stats ─────────────────────────────────────────────────
