@@ -536,9 +536,9 @@ export default function ChatPage() {
           </form>
 
           <p className="text-sm text-muted-foreground text-center mt-3 flex items-center justify-center gap-3">
-            <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer"
+            <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer"
               className="hover:text-foreground transition-colors">
-              Perplexity Computer
+              © 2026 QUETAI
             </a>
             <span>·</span>
             <span className="opacity-50">v3.5</span>

@@ -412,7 +412,7 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
         </div>
 
         <p className="text-center text-sm text-muted-foreground pb-6">
-          QUETAI v3.5 · <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Perplexity Computer</a>
+          <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">© 2026 QUETAI</a> · v3.5
         </p>
       </main>
     </div>
