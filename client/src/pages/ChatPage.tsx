@@ -4,6 +4,7 @@ import { API_BASE } from "@/lib/queryClient";
 import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, ShieldCheck, Sun, Moon, Bell, BellOff } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import InstallGuide from "@/components/InstallGuide";
+import { useFCM } from "@/hooks/useFCM";
 import { Link } from "wouter";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ export default function ChatPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // ── Push notifications ───────────────────────────────────────────────────────
   const { status: pushStatus, suscrito, suscribirse, desuscribirse } = usePushNotifications(sessionId);
+  // FCM nativo para APK Android
+  useFCM(sessionId);
   const [bannerPush, setBannerPush] = useState(true); // mostrar banner de permiso
   const [mostrarGuia, setMostrarGuia] = useState(false); // mostrar tutorial instalación Android
 

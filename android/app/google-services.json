@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "850912265667",
+    "project_id": "quetai",
+    "storage_bucket": "quetai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:850912265667:android:918d0df644577302746976",
+        "android_client_info": {
+          "package_name": "tech.quetai.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1NjMPxqGz8cpLpeMLKrLbHk5UTJGPsK0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

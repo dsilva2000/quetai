@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { Server } from "http";
 import OpenAI from "openai";
 import webpush from "web-push";
+import { inicializarFCM } from "./fcm";
 import { storage } from "./storage";
 
 const openai = new OpenAI();
@@ -11,6 +12,9 @@ const ADMIN_PIN = process.env.ADMIN_PIN || "1234";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
 // Voz en español cálida — Rachel (multilingual) o puedes cambiar por otra
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+
+// ─── Firebase Cloud Messaging (FCM)
+inicializarFCM();
 
 // ─── Web Push (VAPID) ─────────────────────────────────────────────────────────
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || "";
@@ -222,6 +226,22 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   // ── Push: clave pública VAPID ────────────────────────────────────
   app.get("/api/push/vapid-key", (_req, res) => {
     res.json({ publicKey: VAPID_PUBLIC });
+  });
+
+  // ── FCM: registrar token del APK ──────────────────────────────────
+  app.post("/api/fcm/token", (req, res) => {
+    const { sessionId, token } = req.body;
+    if (!sessionId || !token) {
+      return res.status(400).json({ error: "sessionId y token requeridos" });
+    }
+    try {
+      storage.saveFcmToken(sessionId, token);
+      console.log(`[fcm] Token registrado para sesión ${sessionId.slice(0,8)}...`);
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[fcm] Error guardando token:", err?.message);
+      res.status(500).json({ error: "Error guardando token" });
+    }
   });
 
   // ── Push: guardar suscripción ──────────────────────────────────────

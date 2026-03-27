@@ -13,6 +13,19 @@ db.pragma("foreign_keys = ON");
 
 // ── Migración segura: agregar tablas nuevas si no existen ──────────────────
 const tablas = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((r: any) => r.name);
+// Tabla de tokens FCM para notificaciones nativas (APK)
+if (!tablas.includes('fcm_tokens')) {
+  db.exec(`
+    CREATE TABLE fcm_tokens (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id  TEXT    NOT NULL,
+      token       TEXT    NOT NULL UNIQUE,
+      creado_en   TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  console.log('[db] Tabla fcm_tokens creada');
+}
+
 if (!tablas.includes('push_suscripciones')) {
   db.exec(`
     CREATE TABLE push_suscripciones (
@@ -174,6 +187,35 @@ export const storage = {
 
   clearMensajes(sessionId: string): void {
     db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
+  },
+
+  // ── FCM tokens (APK) ─────────────────────────────────
+  saveFcmToken(sessionId: string, token: string): void {
+    db.prepare(`
+      INSERT INTO fcm_tokens (session_id, token)
+      VALUES (?, ?)
+      ON CONFLICT(token) DO UPDATE SET session_id=excluded.session_id
+    `).run(sessionId, token);
+  },
+
+  deleteFcmToken(token: string): void {
+    db.prepare("DELETE FROM fcm_tokens WHERE token = ?").run(token);
+  },
+
+  getFcmTokensBySession(sessionId: string): string[] {
+    return (db.prepare("SELECT token FROM fcm_tokens WHERE session_id = ?").all(sessionId) as any[]).map(r => r.token);
+  },
+
+  // Para el cron: obtener todos los medicamentos con sus FCM tokens
+  getMedicamentosConFCM(): { sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; token: string }[] {
+    return (db.prepare(`
+      SELECT m.session_id as sessionId, m.id as medId, m.nombre, m.horario,
+             u.nombre as usuarioNombre, f.token
+      FROM medicamentos m
+      JOIN usuarios u ON u.session_id = m.session_id
+      JOIN fcm_tokens f ON f.session_id = m.session_id
+      WHERE m.activo = 1
+    `).all() as any[]);
   },
 
   // ── Push suscripciones ──────────────────────────────
