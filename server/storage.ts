@@ -11,6 +11,33 @@ const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
+// ── Migración segura: agregar tablas nuevas si no existen ──────────────────
+const tablas = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((r: any) => r.name);
+if (!tablas.includes('push_suscripciones')) {
+  db.exec(`
+    CREATE TABLE push_suscripciones (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id  TEXT    NOT NULL,
+      endpoint    TEXT    NOT NULL UNIQUE,
+      p256dh      TEXT    NOT NULL,
+      auth        TEXT    NOT NULL,
+      creado_en   TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  console.log('[db] Tabla push_suscripciones creada');
+}
+if (!tablas.includes('recordatorios_enviados')) {
+  db.exec(`
+    CREATE TABLE recordatorios_enviados (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id  TEXT    NOT NULL,
+      med_id      INTEGER NOT NULL,
+      fecha_hora  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  console.log('[db] Tabla recordatorios_enviados creada');
+}
+
 // ─── Schema SQL ────────────────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS usuarios (

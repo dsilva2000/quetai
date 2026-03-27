@@ -345,20 +345,21 @@ export default function ChatPage() {
             </p>
             <input
               type="text"
-              placeholder="Escribe tu nombre aquí"
+              placeholder="Ej: María, Daniel, Rosa..."
               value={inputNombre}
               onChange={e => setInputNombre(e.target.value)}
               onKeyDown={e => e.key === "Enter" && registrar()}
               autoFocus
-              className="w-full text-center text-2xl font-medium h-16 rounded-2xl border-2 border-border bg-input px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              autoComplete="given-name"
+              className="w-full text-center text-2xl font-semibold h-[4.5rem] rounded-2xl border-2 border-border bg-input px-4 focus:outline-none focus:ring-4 focus:ring-primary/30 focus:border-primary transition-all placeholder:text-muted-foreground/50"
             />
             <button
               onClick={registrar}
-              className="w-full h-16 rounded-2xl text-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all shadow-sm"
+              className="w-full h-[4.5rem] rounded-2xl text-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all shadow-md"
             >
-              Empezar a charlar ✨
+              ¡Empezar! 😊
             </button>
-            <p className="text-base text-muted-foreground text-center">
+            <p className="text-base text-muted-foreground text-center leading-relaxed">
               Solo guardamos tu nombre para que QUETAI te llame con cariño.
             </p>
           </div>
@@ -435,15 +436,15 @@ export default function ChatPage() {
       </header>
 
       {/* ── Banner notificaciones push ── */}
-      {fase === "chat" && bannerPush && pushStatus === "prompt" && medicamentos.length > 0 && (
+      {fase === "chat" && bannerPush && pushStatus === "prompt" && (
         <div className="mx-4 mt-3 mb-1 rounded-2xl bg-primary/10 border border-primary/20 p-4 flex items-start gap-3 shrink-0">
           <Bell className="w-6 h-6 text-primary shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-base text-foreground leading-snug">
-              ¿Quieres que te avisemos cuando tomar tus pastillas?
+            <p className="font-semibold text-lg text-foreground leading-snug">
+              ¿Quieres recibir recordatorios de tus pastillas? 💊
             </p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Te mandamos un recordatorio aunque tengas el celular guardado.
+            <p className="text-base text-muted-foreground mt-1">
+              Te avisamos aunque el celular esté guardado o la pantalla apagada.
             </p>
             <div className="flex gap-2 mt-3">
               <button
@@ -451,13 +452,13 @@ export default function ChatPage() {
                   const ok = await suscribirse();
                   if (ok) setBannerPush(false);
                 }}
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all active:scale-95"
+                className="px-5 py-3 rounded-2xl bg-primary text-primary-foreground text-base font-bold hover:bg-primary/90 transition-all active:scale-95"
               >
                 Sí, avísame 🔔
               </button>
               <button
                 onClick={() => setBannerPush(false)}
-                className="px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-all"
+                className="px-5 py-3 rounded-2xl border border-border text-base text-muted-foreground hover:bg-muted transition-all"
               >
                 Ahora no
               </button>
@@ -564,9 +565,9 @@ export default function ChatPage() {
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder={`Escríbele algo a QUETAI…`}
+              placeholder={streaming ? "QUETAI está respondiendo…" : `Escribe aquí, ${primerNombre}…`}
               disabled={streaming}
-              className="flex-1 rounded-2xl border-2 border-border bg-input px-4 py-3.5 text-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="flex-1 rounded-2xl border-2 border-border bg-input px-4 py-4 text-lg focus:outline-none focus:ring-4 focus:ring-primary/30 focus:border-primary transition-all"
             />
             {/* Botón enviar */}
             <button

@@ -109,19 +109,61 @@
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* ── QUETAI: tipografía grande para adultos mayores ── */
+/* ── QUETAI: tipografía y diseño para adultos mayores ── */
 @layer base {
+  /* Fuente base más grande para fácil lectura */
   html {
     font-size: 17px;
   }
-  @media (min-width: 640px) {
+  @media (min-width: 480px) {
     html { font-size: 18px; }
+  }
+  @media (min-width: 768px) {
+    html { font-size: 19px; }
+  }
+
+  /* Mejor espaciado de línea para lectura */
+  body {
+    line-height: 1.65;
+  }
+
+  /* Inputs más grandes y legibles */
+  input, textarea, select {
+    font-size: 1rem !important;
+    min-height: 3rem;
+  }
+
+  /* Botones mínimo 48px de alto (accesibilidad táctil) */
+  button {
+    min-height: 44px;
   }
 }
 
+/* Burbujas del chat */
 .bubble-user {
   @apply bg-primary text-primary-foreground rounded-3xl rounded-br-lg px-5 py-3.5 text-lg leading-relaxed;
 }
 .bubble-assistant {
   @apply bg-card border border-border text-foreground rounded-3xl rounded-bl-lg px-5 py-3.5 text-lg leading-relaxed;
+}
+
+/* Animación de los puntos de carga */
+@keyframes bounce-dot {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+.animate-bounce {
+  animation: bounce-dot 1.2s infinite ease-in-out;
+}
+
+/* Scroll suave en el chat */
+.overflow-y-auto {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mejorar tap targets en móvil */
+@media (max-width: 640px) {
+  .rounded-2xl { border-radius: 1rem; }
+  .rounded-3xl { border-radius: 1.25rem; }
 }

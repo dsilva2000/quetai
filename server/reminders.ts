@@ -34,40 +34,53 @@ function getMensaje(nombreUsuario: string, nombreMed: string, horario: string): 
   return variantes[Math.floor(Math.random() * variantes.length)];
 }
 
-// Parsear horario "HH:MM", "8", "8am", "8 de la mañana", etc.
+// Parsear horario en cualquier formato natural que use un adulto mayor
 function parsearHorario(horario: string): { horas: number; minutos: number } | null {
   const s = horario.toLowerCase().trim();
 
-  // Formato HH:MM
-  const matchHHMM = s.match(/^(\d{1,2}):(\d{2})/);
+  // Normalizar separadores: "8.37" → "8:37", "8 37" → "8:37"
+  const normalizado = s
+    .replace(/(\d)\.(\d)/g, "$1:$2")       // 8.37 → 8:37
+    .replace(/(\d)\s+(\d{2})(?=\s|$|\s*(am|pm|de))/g, "$1:$2"); // "8 37 pm" → "8:37 pm"
+
+  // Extraer periodo am/pm y texto de período
+  const esPm = /pm|p\.m|tarde|noche/.test(normalizado);
+  const esAm = /am|a\.m|ma[ñn]ana/.test(normalizado);
+
+  // Buscar HH:MM o H:MM
+  const matchHHMM = normalizado.match(/(\d{1,2}):(\d{2})/);
   if (matchHHMM) {
-    return { horas: parseInt(matchHHMM[1]), minutos: parseInt(matchHHMM[2]) };
+    let h = parseInt(matchHHMM[1]);
+    const m = parseInt(matchHHMM[2]);
+    if (esPm && h < 12) h += 12;
+    if (esAm && h === 12) h = 0;
+    // Hora militar directa (13-23) → ya es PM
+    return { horas: h % 24, minutos: m };
   }
 
-  // Formato "8am", "8pm", "8 am"
-  const matchAmPm = s.match(/^(\d{1,2})\s*(am|pm)/);
-  if (matchAmPm) {
-    let h = parseInt(matchAmPm[1]);
-    if (matchAmPm[2] === "pm" && h < 12) h += 12;
-    if (matchAmPm[2] === "am" && h === 12) h = 0;
+  // Solo hora + am/pm: "8pm", "8 pm", "8am"
+  const matchHAmPm = normalizado.match(/(\d{1,2})\s*(am|pm|a\.m|p\.m)/);
+  if (matchHAmPm) {
+    let h = parseInt(matchHAmPm[1]);
+    const p = matchHAmPm[2];
+    if ((p.startsWith("p")) && h < 12) h += 12;
+    if ((p.startsWith("a")) && h === 12) h = 0;
     return { horas: h, minutos: 0 };
   }
 
-  // Solo número "8" → asumir en punto
-  const matchNum = s.match(/^(\d{1,2})$/);
-  if (matchNum) {
-    return { horas: parseInt(matchNum[1]), minutos: 0 };
+  // Con texto de período: "8 de la tarde", "8 de la mañana"
+  const matchPeriodo = normalizado.match(/(\d{1,2})\s*(?:de la\s*)?(ma[ñn]ana|tarde|noche)/);
+  if (matchPeriodo) {
+    let h = parseInt(matchPeriodo[1]);
+    const p = matchPeriodo[2];
+    if ((p === "tarde" || p === "noche") && h < 12) h += 12;
+    return { horas: h, minutos: 0 };
   }
 
-  // "de la mañana" → AM, "de la tarde/noche" → PM
-  const matchNatural = s.match(/(\d{1,2})(?::(\d{2}))?\s*(de la ma[ñn]ana|de la tarde|de la noche|mañana|tarde|noche)/);
-  if (matchNatural) {
-    let h = parseInt(matchNatural[1]);
-    const min = matchNatural[2] ? parseInt(matchNatural[2]) : 0;
-    const periodo = matchNatural[3];
-    if (periodo.includes("tarde") && h < 12) h += 12;
-    if (periodo.includes("noche") && h < 12) h += 12;
-    return { horas: h, minutos: min };
+  // Solo número: "8", "13"
+  const matchSolo = normalizado.match(/^(\d{1,2})$/);
+  if (matchSolo) {
+    return { horas: parseInt(matchSolo[1]) % 24, minutos: 0 };
   }
 
   return null;
