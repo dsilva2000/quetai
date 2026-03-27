@@ -133,16 +133,41 @@ export default function ChatPage() {
     setMensajes([msg]);
   }, []);
 
-  // ── TTS — ElevenLabs directo desde el browser ────────────────────────────────
+  // ── TTS — APK: motor nativo Android / Browser: ElevenLabs + fallback ────────
   const ELEVEN_KEY = "131d240b7c0b6c5e5d7b079f97dbd5bcb8615a3a73a3880d846eddd21187a9ea";
-  const ELEVEN_VOICE = "EXAVITQu4vr4xnSDxMaL"; // Sarah — premade, gratis
+  const ELEVEN_VOICE = "EXAVITQu4vr4xnSDxMaL";
 
   const hablarTexto = useCallback(async (texto: string) => {
     if (vozSilenciada) return;
-    const textoLimpio = texto.replace(/[*_~`]/g, "").replace(/\p{Emoji}/gu, "").trim();
+    const textoLimpio = texto.replace(/[*_~`]/g, "").replace(/[\u{1F300}-\u{1FAFF}\u{1F600}-\u{1F64F}\u{2600}-\u{27BF}]/gu, "").trim();
     if (!textoLimpio) return;
     setHablando(true);
 
+    const isCapacitor = !!(window as any).Capacitor;
+
+    // ── APK: TTS nativo de Android (sin internet, sin latencia) ──────────
+    if (isCapacitor) {
+      try {
+        const { TextToSpeech } = await import("@capacitor-community/text-to-speech");
+        await TextToSpeech.speak({
+          text: textoLimpio,
+          lang: "es-419",
+          rate: 0.9,
+          pitch: 1.05,
+          volume: 1.0,
+          category: "ambient",
+        });
+        setHablando(false);
+        if (modoVoz) iniciarEscucha();
+      } catch (err) {
+        console.error("[tts] Error TTS nativo:", err);
+        setHablando(false);
+        if (modoVoz) iniciarEscucha();
+      }
+      return;
+    }
+
+    // ── Browser: ElevenLabs con fallback a SpeechSynthesis ──────────────
     const usarNavegador = () => {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
