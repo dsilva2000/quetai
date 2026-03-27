@@ -52,3 +52,14 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+android.signingConfigs {
+    release {
+        storeFile file('/home/user/workspace/quetai-release.keystore')
+        storePassword 'quetai2026'
+        keyAlias 'quetai'
+        keyPassword 'quetai2026'
+    }
+}
+
+android.buildTypes.release.signingConfig = android.signingConfigs.release

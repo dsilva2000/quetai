@@ -4,11 +4,8 @@ const config: CapacitorConfig = {
   appId: 'tech.quetai.app',
   appName: 'QUETAI',
   webDir: 'dist/public',
-  server: {
-    // En producción usar la URL de Railway
-    url: 'https://quetai-production.up.railway.app',
-    cleartext: false,
-  },
+  // Sin server.url — el APK sirve el JS localmente
+  // Esto permite que los plugins nativos (TTS, Push) funcionen correctamente
   android: {
     allowMixedContent: false,
     backgroundColor: '#f5f0e8',

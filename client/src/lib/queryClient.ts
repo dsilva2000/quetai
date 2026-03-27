@@ -1,8 +1,11 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// URL relativa — el frontend se sirve desde el mismo servidor Railway
-// En dev local usar VITE_API_URL si se necesita apuntar a otro servidor
-export const API_BASE = import.meta.env.VITE_API_URL || "";
+// Detectar entorno:
+// - APK (Capacitor): usar URL absoluta de Railway
+// - Browser/Railway: URL relativa (mismo dominio)
+const isCapacitor = typeof (window as any).Capacitor !== "undefined";
+export const API_BASE = import.meta.env.VITE_API_URL ||
+  (isCapacitor ? "https://quetai-production.up.railway.app" : "");
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
