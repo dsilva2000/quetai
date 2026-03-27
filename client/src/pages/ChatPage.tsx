@@ -145,25 +145,30 @@ export default function ChatPage() {
 
     const isCapacitor = !!(window as any).Capacitor;
 
-    // ── APK: TTS nativo de Android (sin internet, sin latencia) ──────────
+    // ── APK: TTS nativo de Android via Capacitor bridge ──────────────
     if (isCapacitor) {
       try {
-        const { TextToSpeech } = await import("@capacitor-community/text-to-speech");
-        await TextToSpeech.speak({
-          text: textoLimpio,
-          lang: "es-419",
-          rate: 0.9,
-          pitch: 1.05,
-          volume: 1.0,
-          category: "ambient",
-        });
-        setHablando(false);
-        if (modoVoz) iniciarEscucha();
+        // Usar el bridge nativo de Capacitor directamente
+        // Evita que Vite resuelva la implementación web del plugin
+        const cap = (window as any).Capacitor;
+        const plugin = cap?.Plugins?.TextToSpeech;
+        if (plugin?.speak) {
+          await plugin.speak({
+            text: textoLimpio,
+            lang: "es-419",
+            rate: 0.9,
+            pitch: 1.05,
+            volume: 1.0,
+            category: "ambient",
+          });
+        } else {
+          console.warn("[tts] Plugin TTS no disponible en Capacitor");
+        }
       } catch (err) {
         console.error("[tts] Error TTS nativo:", err);
-        setHablando(false);
-        if (modoVoz) iniciarEscucha();
       }
+      setHablando(false);
+      if (modoVoz) iniciarEscucha();
       return;
     }
 
