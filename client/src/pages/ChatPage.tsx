@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { API_BASE } from "@/lib/queryClient";
 import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, ShieldCheck, Sun, Moon, Bell, BellOff } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import InstallGuide from "@/components/InstallGuide";
 import { Link } from "wouter";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ export default function ChatPage() {
   // ── Push notifications ───────────────────────────────────────────────────────
   const { status: pushStatus, suscrito, suscribirse, desuscribirse } = usePushNotifications(sessionId);
   const [bannerPush, setBannerPush] = useState(true); // mostrar banner de permiso
+  const [mostrarGuia, setMostrarGuia] = useState(false); // mostrar tutorial instalación Android
 
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -333,7 +335,7 @@ export default function ChatPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-foreground tracking-tight">QUETAI</h1>
-              <p className="text-xl text-muted-foreground mt-1">Tu amigo de cada día · <span className="text-base opacity-60">v3.5</span></p>
+              <p className="text-xl text-muted-foreground mt-1">Tu amigo de cada día · <span className="text-base opacity-60">v3.8</span></p>
             </div>
           </div>
 
@@ -399,8 +401,8 @@ export default function ChatPage() {
           {/* Notificaciones */}
           {pushStatus !== "unsupported" && (
             <button
-              onClick={suscrito ? desuscribirse : suscribirse}
-              title={suscrito ? "Desactivar recordatorios" : "Activar recordatorios"}
+              onClick={suscrito ? desuscribirse : () => setMostrarGuia(true)}
+              title={suscrito ? "Desactivar recordatorios" : "Instalar app para recordatorios"}
               className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
                 suscrito ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
@@ -449,12 +451,24 @@ export default function ChatPage() {
             <div className="flex gap-2 mt-3">
               <button
                 onClick={async () => {
+                  // Intentar suscripción push directa
                   const ok = await suscribirse();
-                  if (ok) setBannerPush(false);
+                  if (ok) {
+                    setBannerPush(false);
+                  } else {
+                    // Si falla (browser cerrado no soporta push sin instalar), mostrar guía
+                    setMostrarGuia(true);
+                  }
                 }}
                 className="px-5 py-3 rounded-2xl bg-primary text-primary-foreground text-base font-bold hover:bg-primary/90 transition-all active:scale-95"
               >
                 Sí, avísame 🔔
+              </button>
+              <button
+                onClick={() => setMostrarGuia(true)}
+                className="px-5 py-3 rounded-2xl border-2 border-primary/30 text-base font-semibold text-primary hover:bg-primary/10 transition-all active:scale-95"
+              >
+                ¿Cómo instalar? 📲
               </button>
               <button
                 onClick={() => setBannerPush(false)}
@@ -594,13 +608,25 @@ export default function ChatPage() {
               © 2026 QUETAI
             </a>
             <span>·</span>
-            <span className="opacity-50">v3.5</span>
+            <span className="opacity-50">v3.8</span>
             <span>·</span>
             <Link href="/admin" className="hover:text-foreground transition-colors flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />Admin
             </Link>
           </p>
         </div>
+      )}
+
+      {/* ── Tutorial de instalación Android ── */}
+      {mostrarGuia && (
+        <InstallGuide
+          onClose={() => setMostrarGuia(false)}
+          onInstalado={() => {
+            setMostrarGuia(false);
+            setBannerPush(false);
+            suscribirse();
+          }}
+        />
       )}
     </div>
   );

@@ -73,7 +73,7 @@ function LoginPanel({ onLogin }: { onLogin: (t: string) => void }) {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Administración</h1>
-            <p className="text-muted-foreground text-base mt-1">QUETAI v3.5</p>
+            <p className="text-muted-foreground text-base mt-1">QUETAI v3.8</p>
           </div>
         </div>
 
@@ -250,7 +250,7 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
             </Link>
             <div>
               <h1 className="font-bold text-base leading-tight">Panel de Administración</h1>
-              <p className="text-xs text-muted-foreground">QUETAI v3.5</p>
+              <p className="text-xs text-muted-foreground">QUETAI v3.8</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -412,7 +412,7 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
         </div>
 
         <p className="text-center text-sm text-muted-foreground pb-6">
-          <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">© 2026 QUETAI</a> · v3.5
+          <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">© 2026 QUETAI</a> · v3.8
         </p>
       </main>
     </div>
