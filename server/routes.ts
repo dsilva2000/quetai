@@ -271,6 +271,53 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     res.json({ ok: true });
   });
 
+  // ── Recordatorios pendientes (polling desde el frontend) ────────────────
+  app.get("/api/session/:sessionId/recordatorios-ahora", (req, res) => {
+    const { sessionId } = req.params;
+    const usuario = storage.getUsuario(sessionId);
+    if (!usuario) return res.json({ recordatorios: [] });
+
+    const meds = storage.getMedicamentos(sessionId);
+    if (!meds.length) return res.json({ recordatorios: [] });
+
+    const ahora = new Date();
+    const horaActual = ahora.getHours();
+    const minActual = ahora.getMinutes();
+
+    // Importar el parser de reminders.ts no es posible aquí,
+    // así que replicamos la lógica de parseo básica
+    const parsear = (horario: string): { horas: number; minutos: number } | null => {
+      const s = horario.toLowerCase().trim()
+        .replace(/(\d)\.(\d)/g, "$1:$2")
+        .replace(/(\d)\s+(\d{2})(?=\s|$|\s*(am|pm|de))/g, "$1:$2");
+      const esPm = /pm|tarde|noche/.test(s);
+      const esAm = /am|ma[ñn]ana/.test(s);
+      const m1 = s.match(/(\d{1,2}):(\d{2})/);
+      if (m1) { let h = parseInt(m1[1]); const min = parseInt(m1[2]); if (esPm && h < 12) h += 12; if (esAm && h === 12) h = 0; return { horas: h % 24, minutos: min }; }
+      const m2 = s.match(/(\d{1,2})\s*(am|pm)/);
+      if (m2) { let h = parseInt(m2[1]); if (m2[2].startsWith("p") && h < 12) h += 12; if (m2[2].startsWith("a") && h === 12) h = 0; return { horas: h, minutos: 0 }; }
+      const m3 = s.match(/(\d{1,2})\s*(de la\s*)?(ma[ñn]ana|tarde|noche)/);
+      if (m3) { let h = parseInt(m3[1]); if (m3[3] === "tarde" || m3[3] === "noche") { if (h < 12) h += 12; } return { horas: h, minutos: 0 }; }
+      const m4 = s.match(/^(\d{1,2})$/);
+      if (m4) return { horas: parseInt(m4[1]) % 24, minutos: 0 };
+      return null;
+    };
+
+    const primerNombre = usuario.nombre.split(" ")[0];
+    const pendientes = meds.filter(m => {
+      const p = parsear(m.horario);
+      if (!p) return false;
+      return p.horas === horaActual && p.minutos === minActual;
+    }).map(m => ({
+      id: m.id,
+      nombre: m.nombre,
+      horario: m.horario,
+      mensaje: `${primerNombre}, es hora de tomar tu ${m.nombre} 💊`,
+    }));
+
+    res.json({ recordatorios: pendientes });
+  });
+
   // ── TTS: texto a voz con ElevenLabs ──────────────────────────────
   app.post("/api/tts", async (req, res) => {
     const { texto } = req.body;

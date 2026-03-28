@@ -4,7 +4,9 @@ import { API_BASE } from "@/lib/queryClient";
 import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, ShieldCheck, Sun, Moon, Bell, BellOff } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import InstallGuide from "@/components/InstallGuide";
+import RecordatorioBubble from "@/components/RecordatorioBubble";
 import { useFCM } from "@/hooks/useFCM";
+import { isCapacitorApp, hablarNativo, iniciarEscuchaNativa, detenerEscuchaNativa } from "@/hooks/useVozNativa";
 import { Link } from "wouter";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -143,32 +145,12 @@ export default function ChatPage() {
     if (!textoLimpio) return;
     setHablando(true);
 
-    const isCapacitor = !!(window as any).Capacitor;
-
-    // ── APK: TTS nativo de Android via Capacitor bridge ──────────────
-    if (isCapacitor) {
-      try {
-        // Usar el bridge nativo de Capacitor directamente
-        // Evita que Vite resuelva la implementación web del plugin
-        const cap = (window as any).Capacitor;
-        const plugin = cap?.Plugins?.TextToSpeech;
-        if (plugin?.speak) {
-          await plugin.speak({
-            text: textoLimpio,
-            lang: "es-419",
-            rate: 0.9,
-            pitch: 1.05,
-            volume: 1.0,
-            category: "ambient",
-          });
-        } else {
-          console.warn("[tts] Plugin TTS no disponible en Capacitor");
-        }
-      } catch (err) {
-        console.error("[tts] Error TTS nativo:", err);
-      }
-      setHablando(false);
-      if (modoVoz) iniciarEscucha();
+    // ── APK: TTS nativo de Android ────────────────────────────────────
+    if (isCapacitorApp()) {
+      await hablarNativo(textoLimpio, () => {
+        setHablando(false);
+        if (modoVoz) iniciarEscucha();
+      });
       return;
     }
 
@@ -217,18 +199,32 @@ export default function ChatPage() {
 
   // ── STT con Web Speech API ────────────────────────────────────────────────────
   const iniciarEscucha = useCallback(() => {
+    if (hablando) return;
+
+    // APK: usar STT nativo de Android
+    if (isCapacitorApp()) {
+      setEscuchando(true);
+      iniciarEscuchaNativa(
+        (texto) => {
+          setEscuchando(false);
+          if (texto) enviarMensaje(texto);
+        },
+        () => setEscuchando(false)
+      );
+      return;
+    }
+
+    // Browser: Web Speech API
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast({ title: "Tu navegador no soporta voz. Usa Chrome.", variant: "destructive" });
       return;
     }
-    if (hablando) return; // no escuchar mientras QUETAI habla
 
     const rec = new SpeechRecognition();
     rec.lang = "es-419";
     rec.continuous = false;
     rec.interimResults = false;
-
     rec.onstart = () => setEscuchando(true);
     rec.onend = () => setEscuchando(false);
     rec.onerror = () => setEscuchando(false);
@@ -236,12 +232,16 @@ export default function ChatPage() {
       const texto = e.results[0][0].transcript.trim();
       if (texto) enviarMensaje(texto);
     };
-
     recognitionRef.current = rec;
     rec.start();
   }, [hablando]);
 
   const detenerEscucha = useCallback(() => {
+    if (isCapacitorApp()) {
+      detenerEscuchaNativa();
+      setEscuchando(false);
+      return;
+    }
     recognitionRef.current?.stop();
     setEscuchando(false);
   }, []);
@@ -648,6 +648,14 @@ export default function ChatPage() {
             </Link>
           </p>
         </div>
+      )}
+
+      {/* ── Bubble de recordatorio (polling cuando app está abierta) ── */}
+      {fase === "chat" && (
+        <RecordatorioBubble
+          sessionId={sessionId}
+          onHablar={hablarTexto}
+        />
       )}
 
       {/* ── Tutorial de instalación Android ── */}
