@@ -1,76 +1,75 @@
-// QUETAI — Hook para registrar token FCM en el APK nativo
-// Solo activo cuando corre en Capacitor (Android APK)
+// QUETAI — Registro de token FCM para notificaciones push nativas (APK)
+// Usa el bridge nativo de Capacitor directamente para evitar el resolvedor web de Vite
 
 import { useEffect } from "react";
 import { API_BASE } from "@/lib/queryClient";
 
-// Detectar si estamos corriendo en Capacitor (APK)
-function isCapacitor(): boolean {
-  return !!(window as any).Capacitor;
-}
-
 export function useFCM(sessionId: string) {
   useEffect(() => {
-    if (!sessionId || !isCapacitor()) return;
+    if (!sessionId) return;
 
-    // Registrar token FCM cuando la app arranca en Android
-    const registrarToken = async () => {
+    const cap = (window as any).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+
+    const push = cap?.Plugins?.PushNotifications;
+    if (!push) {
+      console.warn("[fcm] Plugin PushNotifications no disponible");
+      return;
+    }
+
+    const registrar = async () => {
       try {
-        // Importar Capacitor PushNotifications dinámicamente
-        const { PushNotifications } = await import("@capacitor/push-notifications");
-
         // Pedir permiso
-        const permResult = await PushNotifications.requestPermissions();
-        if (permResult.receive !== "granted") {
-          console.log("[fcm] Permiso de notificaciones denegado");
+        const permResult = await push.requestPermissions();
+        if (permResult?.receive !== "granted") {
+          console.log("[fcm] Permiso denegado:", permResult?.receive);
           return;
         }
 
-        // Registrar con FCM
-        await PushNotifications.register();
+        // Registrar en FCM
+        await push.register();
+        console.log("[fcm] Registro FCM iniciado...");
 
-        // Escuchar cuando llega el token
-        PushNotifications.addListener("registration", async (tokenData) => {
-          const token = tokenData.value;
-          console.log("[fcm] Token obtenido:", token.slice(0, 20) + "...");
-
-          // Enviar token al servidor
+        // Listener: token obtenido
+        push.addListener("registration", async (data: { value: string }) => {
+          const token = data.value;
+          console.log("[fcm] Token FCM obtenido:", token.slice(0, 20) + "...");
           try {
-            await fetch(`${API_BASE}/api/fcm/token`, {
+            const r = await fetch(`${API_BASE}/api/fcm/token`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionId, token }),
             });
-            console.log("[fcm] Token guardado en el servidor");
+            if (r.ok) console.log("[fcm] Token guardado en servidor ✓");
+            else console.error("[fcm] Error guardando token:", r.status);
           } catch (err) {
-            console.error("[fcm] Error guardando token:", err);
+            console.error("[fcm] Error enviando token:", err);
           }
         });
 
-        // Manejar notificaciones cuando la app está en primer plano
-        PushNotifications.addListener("pushNotificationReceived", (notification) => {
-          console.log("[fcm] Notificación recibida:", notification.title);
-          // En foreground, mostrar como toast o alert nativo
-          if (notification.title && notification.body) {
-            // El sistema la muestra automáticamente en Android 13+
-          }
+        // Listener: error de registro
+        push.addListener("registrationError", (err: any) => {
+          console.error("[fcm] Error de registro FCM:", err);
         });
 
-        // Manejar tap en la notificación
-        PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
-          console.log("[fcm] Notificación tocada:", action.notification.title);
-          // La app ya está abierta, no necesitamos hacer nada más
+        // Listener: notificación en foreground
+        push.addListener("pushNotificationReceived", (notif: any) => {
+          console.log("[fcm] Notificación recibida en foreground:", notif.title);
+          // El bubble de RecordatorioBubble lo muestra vía polling
         });
 
-        PushNotifications.addListener("registrationError", (err) => {
-          console.error("[fcm] Error de registro:", err.error);
+        // Listener: usuario tocó la notificación
+        push.addListener("pushNotificationActionPerformed", (action: any) => {
+          const sid = action.notification?.data?.sessionId;
+          console.log("[fcm] Notificación tocada, sid:", sid);
+          // Ya estamos en la app, no necesitamos navegar
         });
 
       } catch (err) {
-        console.error("[fcm] Error iniciando FCM:", err);
+        console.error("[fcm] Error inicializando FCM:", err);
       }
     };
 
-    registrarToken();
+    registrar();
   }, [sessionId]);
 }

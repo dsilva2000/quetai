@@ -378,6 +378,34 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     res.status(401).json({ error: "No autorizado" });
   }
 
+  // ── Admin: ver tokens FCM registrados ────────────────────────────────
+  app.get("/api/admin/fcm-tokens", adminAuth, (_req, res) => {
+    const usuarios = storage.getAllUsuarios();
+    const resultado = usuarios.map(u => {
+      const tokens = storage.getFcmTokensBySession(u.sessionId);
+      const meds = storage.getMedicamentos(u.sessionId);
+      return { nombre: u.nombre, sessionId: u.sessionId, fcmTokens: tokens.length, medicamentos: meds.length };
+    }).filter(u => u.fcmTokens > 0 || u.medicamentos > 0);
+    res.json(resultado);
+  });
+
+  // ── Admin: enviar notificación de prueba FCM ──────────────────────
+  app.post("/api/admin/test-fcm", adminAuth, async (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: "sessionId requerido" });
+    const tokens = storage.getFcmTokensBySession(sessionId);
+    if (!tokens.length) return res.json({ ok: false, error: "No hay tokens FCM para esta sesión" });
+    const usuario = storage.getUsuario(sessionId);
+    const nombre = usuario?.nombre.split(" ")[0] || "amigo";
+    let enviados = 0;
+    for (const token of tokens) {
+      const { enviarFCM: fcm } = await import("./fcm");
+      const ok = await fcm(token, `💊 Prueba de QUETAI`, `Hola ${nombre}, si ves esto ¡FCM funciona! 🎉`);
+      if (ok) enviados++;
+    }
+    res.json({ ok: enviados > 0, enviados, tokens: tokens.length });
+  });
+
   // ── Admin: estadísticas generales ────────────────────────────────
   app.get("/api/admin/stats", adminAuth, (_req, res) => {
     res.json(storage.getStats());

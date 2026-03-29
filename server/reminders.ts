@@ -1,6 +1,5 @@
-// QUETAI — Cron de recordatorios de medicamentos
-// Se ejecuta cada minuto y envía notificaciones push a los usuarios
-// que tengan medicamentos programados para esta hora
+// QUETAI — Cron de recordatorios de medicamentos v4.1
+// Prioriza FCM (APK nativo) sobre VAPID (web push)
 
 import webpush from "web-push";
 import { enviarFCM } from "./fcm";
@@ -16,73 +15,33 @@ function getMensaje(nombreUsuario: string, nombreMed: string, horario: string): 
   const primer = nombreUsuario.split(" ")[0];
   const hora = new Date().getHours();
   const saludo = getSaludo(hora);
-
   const variantes = [
-    {
-      title: `💊 Hora de tu medicamento, ${primer}`,
-      body: `${saludo} ${primer} — es momento de tomar tu ${nombreMed}. ¡No te olvides!`,
-    },
-    {
-      title: `QUETAI te recuerda 💊`,
-      body: `${primer}, son las ${horario} y es hora de tu ${nombreMed}. Cuídate mucho.`,
-    },
-    {
-      title: `💊 ${nombreMed} — ${horario}`,
-      body: `${saludo} ${primer}, recuerda tomar tu ${nombreMed} ahora.`,
-    },
+    { title: `💊 Hora de tu medicamento, ${primer}`, body: `${saludo} ${primer} — es momento de tomar tu ${nombreMed}. ¡No te olvides!` },
+    { title: `QUETAI te recuerda 💊`, body: `${primer}, son las ${horario} y es hora de tu ${nombreMed}. Cuídate mucho.` },
+    { title: `💊 ${nombreMed} — ${horario}`, body: `${saludo} ${primer}, recuerda tomar tu ${nombreMed} ahora.` },
   ];
-
   return variantes[Math.floor(Math.random() * variantes.length)];
 }
 
-// Parsear horario en cualquier formato natural que use un adulto mayor
 function parsearHorario(horario: string): { horas: number; minutos: number } | null {
-  const s = horario.toLowerCase().trim();
+  const s = horario.toLowerCase().trim()
+    .replace(/(\d)\.(\d)/g, "$1:$2")
+    .replace(/(\d)\s+(\d{2})(?=\s|$|\s*(am|pm|de))/g, "$1:$2");
 
-  // Normalizar separadores: "8.37" → "8:37", "8 37" → "8:37"
-  const normalizado = s
-    .replace(/(\d)\.(\d)/g, "$1:$2")       // 8.37 → 8:37
-    .replace(/(\d)\s+(\d{2})(?=\s|$|\s*(am|pm|de))/g, "$1:$2"); // "8 37 pm" → "8:37 pm"
+  const esPm = /pm|p\.m|tarde|noche/.test(s);
+  const esAm = /am|a\.m|ma[ñn]ana/.test(s);
 
-  // Extraer periodo am/pm y texto de período
-  const esPm = /pm|p\.m|tarde|noche/.test(normalizado);
-  const esAm = /am|a\.m|ma[ñn]ana/.test(normalizado);
+  const m1 = s.match(/(\d{1,2}):(\d{2})/);
+  if (m1) { let h = parseInt(m1[1]); const min = parseInt(m1[2]); if (esPm && h < 12) h += 12; if (esAm && h === 12) h = 0; return { horas: h % 24, minutos: min }; }
 
-  // Buscar HH:MM o H:MM
-  const matchHHMM = normalizado.match(/(\d{1,2}):(\d{2})/);
-  if (matchHHMM) {
-    let h = parseInt(matchHHMM[1]);
-    const m = parseInt(matchHHMM[2]);
-    if (esPm && h < 12) h += 12;
-    if (esAm && h === 12) h = 0;
-    // Hora militar directa (13-23) → ya es PM
-    return { horas: h % 24, minutos: m };
-  }
+  const m2 = s.match(/(\d{1,2})\s*(am|pm|a\.m|p\.m)/);
+  if (m2) { let h = parseInt(m2[1]); const p = m2[2]; if (p.startsWith("p") && h < 12) h += 12; if (p.startsWith("a") && h === 12) h = 0; return { horas: h, minutos: 0 }; }
 
-  // Solo hora + am/pm: "8pm", "8 pm", "8am"
-  const matchHAmPm = normalizado.match(/(\d{1,2})\s*(am|pm|a\.m|p\.m)/);
-  if (matchHAmPm) {
-    let h = parseInt(matchHAmPm[1]);
-    const p = matchHAmPm[2];
-    if ((p.startsWith("p")) && h < 12) h += 12;
-    if ((p.startsWith("a")) && h === 12) h = 0;
-    return { horas: h, minutos: 0 };
-  }
+  const m3 = s.match(/(\d{1,2})\s*(?:de la\s*)?(ma[ñn]ana|tarde|noche)/);
+  if (m3) { let h = parseInt(m3[1]); if (m3[2] === "tarde" || m3[2] === "noche") { if (h < 12) h += 12; } return { horas: h, minutos: 0 }; }
 
-  // Con texto de período: "8 de la tarde", "8 de la mañana"
-  const matchPeriodo = normalizado.match(/(\d{1,2})\s*(?:de la\s*)?(ma[ñn]ana|tarde|noche)/);
-  if (matchPeriodo) {
-    let h = parseInt(matchPeriodo[1]);
-    const p = matchPeriodo[2];
-    if ((p === "tarde" || p === "noche") && h < 12) h += 12;
-    return { horas: h, minutos: 0 };
-  }
-
-  // Solo número: "8", "13"
-  const matchSolo = normalizado.match(/^(\d{1,2})$/);
-  if (matchSolo) {
-    return { horas: parseInt(matchSolo[1]) % 24, minutos: 0 };
-  }
+  const m4 = s.match(/^(\d{1,2})$/);
+  if (m4) return { horas: parseInt(m4[1]) % 24, minutos: 0 };
 
   return null;
 }
@@ -92,67 +51,77 @@ async function enviarRecordatorios() {
     const ahora = new Date();
     const horaActual = ahora.getHours();
     const minActual = ahora.getMinutes();
-    // Formato para comparar con la DB: "YYYY-MM-DD HH:MM"
     const fechaHoraKey = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')} ${String(horaActual).padStart(2,'0')}:${String(minActual).padStart(2,'0')}`;
 
-    const registros = storage.getMedicamentosParaRecordatorio();
+    // ── 1. FCM (APK nativo — funciona con app cerrada) ────────────────────
+    const registrosFCM = storage.getMedicamentosConFCM();
+    console.log(`[cron] Verificando ${registrosFCM.length} med+FCM tokens a las ${horaActual}:${String(minActual).padStart(2,'0')}`);
 
-    for (const r of registros) {
+    for (const r of registrosFCM) {
       const parsed = parsearHorario(r.horario);
       if (!parsed) continue;
-
-      // Verificar si la hora coincide (±0 minutos exactos)
       if (parsed.horas !== horaActual || parsed.minutos !== minActual) continue;
-
-      // Verificar que no se haya enviado ya este minuto
       if (storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
 
       const { title, body } = getMensaje(r.usuarioNombre, r.nombre, r.horario);
-      const payload = JSON.stringify({
-        title,
-        body,
-        tag: `med-${r.medId}`,
+      console.log(`[fcm] Intentando enviar a ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
+
+      const ok = await enviarFCM(r.token, title, body, {
         sessionId: r.sessionId,
-        url: `/#/?sid=${r.sessionId}`,
+        medId: String(r.medId),
+        tipo: "recordatorio",
       });
 
-      const subscription = {
-        endpoint: r.endpoint,
-        keys: { p256dh: r.p256dh, auth: r.auth },
-      };
+      if (ok) {
+        storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
+        console.log(`[fcm] ✓ Recordatorio enviado: ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
+      } else {
+        console.log(`[fcm] Token inválido para ${r.usuarioNombre}, eliminando`);
+        storage.deleteFcmToken(r.token);
+      }
+    }
+
+    // ── 2. VAPID (webapp PWA instalada) ───────────────────────────────────
+    const registrosVAPID = storage.getMedicamentosParaRecordatorio();
+
+    for (const r of registrosVAPID) {
+      const parsed = parsearHorario(r.horario);
+      if (!parsed) continue;
+      if (parsed.horas !== horaActual || parsed.minutos !== minActual) continue;
+      if (storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
+
+      const { title, body } = getMensaje(r.usuarioNombre, r.nombre, r.horario);
+      const payload = JSON.stringify({ title, body, tag: `med-${r.medId}`, sessionId: r.sessionId });
+      const subscription = { endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } };
 
       try {
         await webpush.sendNotification(subscription, payload);
         storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
-        console.log(`[push] Recordatorio enviado: ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
+        console.log(`[push] ✓ Recordatorio enviado: ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
       } catch (err: any) {
         if (err?.statusCode === 410) {
-          // Suscripción expirada — eliminar
           storage.deletePushSuscripcion(r.endpoint);
-          console.log(`[push] Suscripción expirada eliminada: ${r.endpoint.slice(0, 40)}...`);
         } else {
           console.error(`[push] Error enviando a ${r.usuarioNombre}:`, err?.message);
         }
       }
     }
+
   } catch (err: any) {
-    console.error("[push] Error en cron de recordatorios:", err?.message);
+    console.error("[cron] Error en cron de recordatorios:", err?.message);
   }
 }
 
-// Iniciar cron: ejecutar cada minuto, sincronizado con el reloj
 export function iniciarCronRecordatorios() {
-  console.log("[push] Cron de recordatorios iniciado");
+  console.log("[cron] Cron de recordatorios iniciado");
 
   const tick = () => {
     enviarRecordatorios();
-    // Calcular ms hasta el próximo minuto exacto
     const ahora = new Date();
     const msHastaProximoMinuto = (60 - ahora.getSeconds()) * 1000 - ahora.getMilliseconds() + 100;
     setTimeout(tick, msHastaProximoMinuto);
   };
 
-  // Esperar al próximo minuto exacto para sincronizar
   const ahora = new Date();
   const msHastaProximoMinuto = (60 - ahora.getSeconds()) * 1000 - ahora.getMilliseconds() + 100;
   setTimeout(tick, msHastaProximoMinuto);
