@@ -46,12 +46,26 @@ export async function enviarFCM(
       data: data || {},
       android: {
         priority: "high" as const,
+        ttl: 3600, // 1 hora de validez
         notification: {
           sound: "default",
           channelId: "quetai_reminders",
           priority: "high" as const,
           defaultSound: true,
           defaultVibrateTimings: true,
+          notificationPriority: "PRIORITY_HIGH" as any,
+          visibility: "PUBLIC" as any,
+          vibrateTimingsMillis: [200, 100, 200],
+        },
+        directBootOk: true, // Entregar aunque el teléfono esté bloqueado
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+            badge: 1,
+            contentAvailable: true,
+          },
         },
       },
       token,

@@ -26,9 +26,34 @@ export function useFCM(sessionId: string) {
           return;
         }
 
+        // Crear canal de notificaciones con alta prioridad (Samsung/Android)
+        try {
+          await push.createChannel({
+            id: "quetai_reminders",
+            name: "Recordatorios QUETAI",
+            description: "Avisos de medicamentos y pastillas",
+            importance: 5, // IMPORTANCE_HIGH
+            visibility: 1, // VISIBILITY_PUBLIC
+            sound: "default",
+            vibration: true,
+            lights: true,
+          });
+          console.log("[fcm] Canal de notificaciones creado");
+        } catch (e) {
+          console.log("[fcm] Canal ya existe o no compatible:", e);
+        }
+
         // Registrar en FCM
         await push.register();
         console.log("[fcm] Registro FCM iniciado...");
+
+        // Pedir exención de optimización de batería (crítico para Samsung)
+        const cap = (window as any).Capacitor;
+        const device = cap?.Plugins?.Device;
+        if (device) {
+          const info = await device.getInfo?.();
+          console.log("[fcm] Dispositivo:", info?.manufacturer, info?.model);
+        }
 
         // Listener: token obtenido
         push.addListener("registration", async (data: { value: string }) => {
