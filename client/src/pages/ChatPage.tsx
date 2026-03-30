@@ -46,14 +46,16 @@ function getOrCreateSessionId(): string {
   return sid;
 }
 
-// ─── Logo SVG ──────────────────────────────────────────────────────────────────
+// ─── Logo QUETAI ───────────────────────────────────────────────────────────────
 function QuetaiLogo({ size = 48 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 40 40" width={size} height={size} fill="none" aria-label="QUETAI">
-      <circle cx="20" cy="20" r="18" fill="hsl(152,28%,42%)" opacity="0.15"/>
-      <path d="M20 10 C14 10 10 14.5 10 20 C10 25.5 14 30 20 30 C23 30 25.5 28.5 27 26.5 L30 29 L29 22 L22 23 L24.5 25.2 C23.5 26.4 21.9 27.2 20 27.2 C15.6 27.2 12.8 23.8 12.8 20 C12.8 16.2 15.6 12.8 20 12.8 C22.8 12.8 25.1 14.2 26.4 16.5 L29 15 C27.1 11.8 23.8 10 20 10 Z" fill="hsl(152,28%,42%)"/>
-      <circle cx="20" cy="20" r="2.5" fill="hsl(28,60%,55%)"/>
-    </svg>
+    <img
+      src="./icon-192.png"
+      width={size}
+      height={size}
+      alt="QUETAI"
+      style={{ borderRadius: size * 0.22, objectFit: "cover" }}
+    />
   );
 }
 
@@ -63,6 +65,7 @@ export default function ChatPage() {
   const [fase, setFase] = useState<"cargando" | "onboarding" | "chat">("cargando");
   const [nombre, setNombre] = useState("");
   const [inputNombre, setInputNombre] = useState("");
+  const [inputTelefono, setInputTelefono] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [input, setInput] = useState("");
@@ -272,6 +275,15 @@ export default function ChatPage() {
       body: JSON.stringify({ nombre: n }),
     });
     if (res.ok) {
+      // Guardar teléfono si se proporcionó (para recordatorios por WhatsApp)
+      const tel = inputTelefono.trim().replace(/[^+\d]/g, "");
+      if (tel.length >= 7) {
+        fetch(`${API_BASE}/api/session/${sessionId}/telefono`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telefono: tel }),
+        }).catch(() => {});
+      }
       setNombre(n);
       setFase("chat");
       enviarSaludoInicial(n);
@@ -388,6 +400,20 @@ export default function ChatPage() {
               autoComplete="given-name"
               className="w-full text-center text-2xl font-semibold h-[4.5rem] rounded-2xl border-2 border-border bg-input px-4 focus:outline-none focus:ring-4 focus:ring-primary/30 focus:border-primary transition-all placeholder:text-muted-foreground/50"
             />
+            {/* Teléfono para recordatorios por WhatsApp */}
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground text-center">
+                ¿Quieres recordatorios de tus pastillas por WhatsApp? (opcional)
+              </p>
+              <input
+                type="tel"
+                placeholder="Ej: +51 999 888 777"
+                value={inputTelefono}
+                onChange={e => setInputTelefono(e.target.value)}
+                autoComplete="tel"
+                className="w-full text-center text-xl h-14 rounded-2xl border-2 border-border bg-input px-4 focus:outline-none focus:ring-4 focus:ring-primary/30 focus:border-primary transition-all placeholder:text-muted-foreground/40"
+              />
+            </div>
             <button
               onClick={registrar}
               className="w-full h-[4.5rem] rounded-2xl text-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all shadow-md"

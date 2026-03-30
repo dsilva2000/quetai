@@ -4,8 +4,8 @@
   "description": "Tu compañero conversacional para adultos mayores",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f0e8",
-  "theme_color": "#4a7c59",
+  "background_color": "#2d6a5a",
+  "theme_color": "#2d6a5a",
   "orientation": "portrait-primary",
   "icons": [
     {

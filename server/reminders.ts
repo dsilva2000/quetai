@@ -46,6 +46,33 @@ function parsearHorario(horario: string): { horas: number; minutos: number } | n
   return null;
 }
 
+// Enviar recordatorio por WhatsApp via waboxapp
+async function enviarWhatsApp(telefono: string, mensaje: string, uid: string): Promise<boolean> {
+  const token = process.env.WABOXAPP_TOKEN;
+  if (!token || !uid) return false;
+  try {
+    const params = new URLSearchParams({
+      token,
+      uid,
+      to: telefono,
+      text: mensaje,
+      custom_uid: `quetai-${Date.now()}`,
+    });
+    const r = await fetch(`https://www.waboxapp.com/api/send/chat?${params}`);
+    const data = await r.json() as any;
+    if (data?.success) {
+      console.log(`[whatsapp] ✓ Mensaje enviado a ${telefono.slice(0,6)}...`);
+      return true;
+    } else {
+      console.error("[whatsapp] Error:", JSON.stringify(data));
+      return false;
+    }
+  } catch (err: any) {
+    console.error("[whatsapp] Error enviando:", err?.message);
+    return false;
+  }
+}
+
 async function enviarRecordatorios() {
   try {
     const ahora = new Date();
@@ -81,7 +108,23 @@ async function enviarRecordatorios() {
       }
     }
 
-    // ── 2. VAPID (webapp PWA instalada) ───────────────────────────────────
+    // ── 2. WhatsApp (fallback universal — funciona en cualquier celular) ────
+    const WABOXAPP_UID = process.env.WABOXAPP_UID || "";
+    if (WABOXAPP_UID) {
+      const registrosWA = storage.getMedicamentosConTelefono();
+      for (const r of registrosWA) {
+        const parsed = parsearHorario(r.horario);
+        if (!parsed) continue;
+        if (parsed.horas !== horaActual || parsed.minutos !== minActual) continue;
+        if (storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
+        const primer = r.usuarioNombre.split(" ")[0];
+        const msg = `💊 Hola ${primer}, es hora de tomar tu ${r.nombre} (${r.horario}). - QUETAI`;
+        const ok = await enviarWhatsApp(r.telefono, msg, WABOXAPP_UID);
+        if (ok) storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
+      }
+    }
+
+    // ── 3. VAPID (webapp PWA instalada) ───────────────────────────────────
     const registrosVAPID = storage.getMedicamentosParaRecordatorio();
 
     for (const r of registrosVAPID) {

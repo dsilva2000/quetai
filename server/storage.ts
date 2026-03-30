@@ -13,6 +13,12 @@ db.pragma("foreign_keys = ON");
 
 // ── Migración segura: agregar tablas nuevas si no existen ──────────────────
 const tablas = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((r: any) => r.name);
+// Migración: agregar columna telefono si no existe
+try {
+  db.exec("ALTER TABLE usuarios ADD COLUMN telefono TEXT DEFAULT NULL");
+  console.log('[db] Columna telefono agregada a usuarios');
+} catch (e) { /* ya existe */ }
+
 // Tabla de tokens FCM para notificaciones nativas (APK)
 if (!tablas.includes('fcm_tokens')) {
   db.exec(`
@@ -204,6 +210,26 @@ export const storage = {
 
   getFcmTokensBySession(sessionId: string): string[] {
     return (db.prepare("SELECT token FROM fcm_tokens WHERE session_id = ?").all(sessionId) as any[]).map(r => r.token);
+  },
+
+  savePhone(sessionId: string, telefono: string): void {
+    db.prepare("UPDATE usuarios SET telefono = ? WHERE session_id = ?").run(telefono, sessionId);
+  },
+
+  getPhone(sessionId: string): string | null {
+    const row = db.prepare("SELECT telefono FROM usuarios WHERE session_id = ?").get(sessionId) as any;
+    return row?.telefono || null;
+  },
+
+  // Para el cron: medicamentos con teléfono (WhatsApp fallback)
+  getMedicamentosConTelefono(): { sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; telefono: string }[] {
+    return (db.prepare(`
+      SELECT m.session_id as sessionId, m.id as medId, m.nombre, m.horario,
+             u.nombre as usuarioNombre, u.telefono
+      FROM medicamentos m
+      JOIN usuarios u ON u.session_id = m.session_id
+      WHERE m.activo = 1 AND u.telefono IS NOT NULL AND u.telefono != ''
+    `).all() as any[]);
   },
 
   // Para el cron: obtener todos los medicamentos con sus FCM tokens

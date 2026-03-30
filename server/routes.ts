@@ -117,6 +117,16 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     res.json({ existe: true, usuario, medicamentos: meds });
   });
 
+  // ── Guardar teléfono del usuario (WhatsApp) ──────────────────────────
+  app.post("/api/session/:sessionId/telefono", (req, res) => {
+    const { telefono } = req.body;
+    if (!telefono?.trim()) return res.status(400).json({ error: "teléfono requerido" });
+    // Limpiar: solo números y +
+    const tel = telefono.trim().replace(/[^+\d]/g, "");
+    storage.savePhone(req.params.sessionId, tel);
+    res.json({ ok: true });
+  });
+
   app.post("/api/session/:sessionId/registro", (req, res) => {
     const { sessionId } = req.params;
     const { nombre } = req.body;

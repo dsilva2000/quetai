@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   // Esto permite que los plugins nativos (TTS, Push) funcionen correctamente
   android: {
     allowMixedContent: false,
-    backgroundColor: '#f5f0e8',
+    backgroundColor: '#2d6a5a', // Verde del logo mientras carga
   },
   plugins: {
     PushNotifications: {
