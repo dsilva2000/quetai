@@ -139,9 +139,6 @@ export default function ChatPage() {
   }, []);
 
   // ── TTS — APK: motor nativo Android / Browser: ElevenLabs + fallback ────────
-  const ELEVEN_KEY = "131d240b7c0b6c5e5d7b079f97dbd5bcb8615a3a73a3880d846eddd21187a9ea";
-  const ELEVEN_VOICE = "EXAVITQu4vr4xnSDxMaL";
-
   const hablarTexto = useCallback(async (texto: string) => {
     if (vozSilenciada) return;
     const textoLimpio = texto.replace(/[*_~`]/g, "").replace(/[\u{1F300}-\u{1FAFF}\u{1F600}-\u{1F64F}\u{2600}-\u{27BF}]/gu, "").trim();
@@ -157,16 +154,19 @@ export default function ChatPage() {
       return;
     }
 
-    // ── Browser: ElevenLabs con fallback a SpeechSynthesis ──────────────
+    // ── Browser: Gemini TTS via servidor (voz Aoede — natural y cálida) ────
     const usarNavegador = () => {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         const utt = new SpeechSynthesisUtterance(textoLimpio);
         utt.lang = "es-419"; utt.rate = 0.88; utt.pitch = 1.05;
+        // Buscar voz Microsoft Neural si está disponible (Edge/Chrome en Windows)
         const voices = window.speechSynthesis.getVoices();
-        const esVoice = voices.find(v => v.lang.startsWith("es") && v.name.toLowerCase().includes("female"))
+        const buena = voices.find(v => v.lang.startsWith("es") && v.name.toLowerCase().includes("neural"))
+          || voices.find(v => v.lang.startsWith("es-419"))
+          || voices.find(v => v.lang.startsWith("es") && v.name.toLowerCase().includes("female"))
           || voices.find(v => v.lang.startsWith("es"));
-        if (esVoice) utt.voice = esVoice;
+        if (buena) utt.voice = buena;
         utt.onend = () => { setHablando(false); if (modoVoz) iniciarEscucha(); };
         utt.onerror = () => { setHablando(false); if (modoVoz) iniciarEscucha(); };
         window.speechSynthesis.speak(utt);
@@ -174,18 +174,12 @@ export default function ChatPage() {
     };
 
     try {
-      const resp = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE}`,
-        {
-          method: "POST",
-          headers: { "xi-api-key": ELEVEN_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: textoLimpio,
-            model_id: "eleven_multilingual_v2",
-            voice_settings: { stability: 0.55, similarity_boost: 0.80, style: 0.10, use_speaker_boost: true },
-          }),
-        }
-      );
+      // Llamar al servidor que usa Gemini 2.5 Flash TTS
+      const resp = await fetch(`${API_BASE}/api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto: textoLimpio }),
+      });
       if (!resp.ok) { usarNavegador(); return; }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);

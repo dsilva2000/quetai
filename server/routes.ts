@@ -328,36 +328,75 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     res.json({ recordatorios: pendientes });
   });
 
-  // ── TTS: texto a voz con ElevenLabs ──────────────────────────────
+  // ── TTS: texto a voz con Gemini 2.5 Flash (natural, femenino, cálido) ──────
   app.post("/api/tts", async (req, res) => {
     const { texto } = req.body;
     if (!texto?.trim()) return res.status(400).json({ error: "texto vacío" });
-    if (!ELEVENLABS_API_KEY) return res.status(503).json({ error: "TTS no configurado" });
+
+    const GEMINI_KEY = process.env.OPENAI_API_KEY?.startsWith("AIza")
+      ? process.env.OPENAI_API_KEY
+      : process.env.GEMINI_API_KEY || "";
+
+    if (!GEMINI_KEY) return res.status(503).json({ error: "TTS no configurado" });
 
     try {
-      const elevenRes = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_KEY}`,
         {
           method: "POST",
-          headers: {
-            "xi-api-key": ELEVENLABS_API_KEY,
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: texto.trim(),
-            model_id: "eleven_multilingual_v2",
-            voice_settings: { stability: 0.55, similarity_boost: 0.80, style: 0.15, use_speaker_boost: true },
+            contents: [{ parts: [{ text: texto.trim() }] }],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: "Aoede" } // Voz femenina, cálida
+                }
+              }
+            }
           }),
         }
       );
-      if (!elevenRes.ok) {
-        console.error("ElevenLabs error:", await elevenRes.text());
+
+      if (!geminiRes.ok) {
+        const err = await geminiRes.text();
+        console.error("Gemini TTS error:", err.slice(0, 100));
         return res.status(503).json({ error: "Error TTS" });
       }
-      res.setHeader("Content-Type", "audio/mpeg");
+
+      const data = await geminiRes.json() as any;
+      const audioBase64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!audioBase64) return res.status(503).json({ error: "Sin audio" });
+
+      // Gemini devuelve PCM 24kHz — lo convertimos a WAV para el browser
+      const pcm = Buffer.from(audioBase64, "base64");
+
+      // Crear header WAV (PCM 16-bit, 24kHz, mono)
+      const sampleRate = 24000;
+      const channels = 1;
+      const bitsPerSample = 16;
+      const dataSize = pcm.length;
+      const headerSize = 44;
+      const wav = Buffer.alloc(headerSize + dataSize);
+      wav.write("RIFF", 0);
+      wav.writeUInt32LE(36 + dataSize, 4);
+      wav.write("WAVE", 8);
+      wav.write("fmt ", 12);
+      wav.writeUInt32LE(16, 16); // PCM chunk size
+      wav.writeUInt16LE(1, 20);  // PCM format
+      wav.writeUInt16LE(channels, 22);
+      wav.writeUInt32LE(sampleRate, 24);
+      wav.writeUInt32LE(sampleRate * channels * bitsPerSample / 8, 28);
+      wav.writeUInt16LE(channels * bitsPerSample / 8, 32);
+      wav.writeUInt16LE(bitsPerSample, 34);
+      wav.write("data", 36);
+      wav.writeUInt32LE(dataSize, 40);
+      pcm.copy(wav, 44);
+
+      res.setHeader("Content-Type", "audio/wav");
       res.setHeader("Cache-Control", "no-cache");
-      const buf = await elevenRes.arrayBuffer();
-      res.send(Buffer.from(buf));
+      res.send(wav);
     } catch (err: any) {
       console.error("TTS error:", err?.message);
       res.status(503).json({ error: "Error TTS" });
