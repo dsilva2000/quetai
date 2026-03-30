@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE } from "@/lib/queryClient";
-import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, ShieldCheck, Sun, Moon, Bell, BellOff } from "lucide-react";
+import { Mic, MicOff, Send, Volume2, VolumeX, RotateCcw, Sun, Moon, Bell, BellOff } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import InstallGuide from "@/components/InstallGuide";
 import RecordatorioBubble from "@/components/RecordatorioBubble";
@@ -380,7 +380,7 @@ export default function ChatPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-foreground tracking-tight">QUETAI</h1>
-              <p className="text-xl text-muted-foreground mt-1">Tu amigo de cada día · <span className="text-base opacity-60">v3.8</span></p>
+              <p className="text-xl text-muted-foreground mt-1">Tu amigo de cada día · <span className="text-base opacity-60">v4.4</span></p>
             </div>
           </div>
 
@@ -400,20 +400,7 @@ export default function ChatPage() {
               autoComplete="given-name"
               className="w-full text-center text-2xl font-semibold h-[4.5rem] rounded-2xl border-2 border-border bg-input px-4 focus:outline-none focus:ring-4 focus:ring-primary/30 focus:border-primary transition-all placeholder:text-muted-foreground/50"
             />
-            {/* Teléfono para recordatorios por WhatsApp */}
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground text-center">
-                ¿Quieres recordatorios de tus pastillas por WhatsApp? (opcional)
-              </p>
-              <input
-                type="tel"
-                placeholder="Ej: +51 999 888 777"
-                value={inputTelefono}
-                onChange={e => setInputTelefono(e.target.value)}
-                autoComplete="tel"
-                className="w-full text-center text-xl h-14 rounded-2xl border-2 border-border bg-input px-4 focus:outline-none focus:ring-4 focus:ring-primary/30 focus:border-primary transition-all placeholder:text-muted-foreground/40"
-              />
-            </div>
+
             <button
               onClick={registrar}
               className="w-full h-[4.5rem] rounded-2xl text-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all shadow-md"
@@ -425,11 +412,7 @@ export default function ChatPage() {
             </p>
           </div>
 
-          <div className="text-center">
-            <Link href="/admin" className="text-base text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4">
-              Panel de administración
-            </Link>
-          </div>
+
         </div>
       </div>
     );
@@ -661,18 +644,22 @@ export default function ChatPage() {
             </button>
           </form>
 
-          <p className="text-sm text-muted-foreground text-center mt-3 flex items-center justify-center gap-3">
-            <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors">
-              © 2026 QUETAI
-            </a>
-            <span>·</span>
-            <span className="opacity-50">v3.8</span>
-            <span>·</span>
-            <Link href="/admin" className="hover:text-foreground transition-colors flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />Admin
-            </Link>
-          </p>
+          {/* Footer legal */}
+          <div className="mt-3 space-y-1.5 text-center">
+            <p className="text-xs text-muted-foreground/70 leading-relaxed px-2">
+              Este chat de IA es solo orientación general y no sustituye consejo médico, psicológico ni legal.
+              En emergencias, contacta servicios de urgencias o un familiar. Al usar esta app aceptas estos términos.
+            </p>
+            <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 flex-wrap">
+              <span>Hecho con ❤️ en Latinoamérica ·</span>
+              <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer"
+                className="font-semibold hover:text-foreground transition-colors">QUETAI</a>
+              <span>es un servicio de</span>
+              <a href="https://www.mancolab.com" target="_blank" rel="noopener noreferrer"
+                className="font-semibold hover:text-foreground transition-colors">MancoLab</a>
+              <span>© 2026</span>
+            </p>
+          </div>
         </div>
       )}
 
