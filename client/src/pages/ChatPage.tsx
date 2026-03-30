@@ -412,6 +412,25 @@ export default function ChatPage() {
             </p>
           </div>
 
+          {/* Aviso legal */}
+          <div className="bg-muted/40 rounded-2xl p-4 space-y-2 border border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide text-center">Aviso importante</p>
+            <p className="text-xs text-muted-foreground leading-relaxed text-center">
+              Este servicio está diseñado para brindar acompañamiento e información general.
+              No sustituye el consejo, diagnóstico ni tratamiento de médicos, psicólogos u otros profesionales.
+              Las respuestas de la IA pueden contener errores. En emergencias, contacta servicios de urgencias.
+              Al usar esta app aceptas estos términos.
+            </p>
+            <p className="text-xs text-muted-foreground text-center pt-1">
+              Hecho con ❤️ en Latinoamérica ·{" "}
+              <a href="https://www.quetai.tech" target="_blank" rel="noopener noreferrer"
+                className="font-semibold hover:text-foreground transition-colors">QUETAI</a>
+              {" "}es un servicio de{" "}
+              <a href="https://www.mancolab.com" target="_blank" rel="noopener noreferrer"
+                className="font-semibold hover:text-foreground transition-colors">MancoLab</a>
+              {" "}© 2026
+            </p>
+          </div>
 
         </div>
       </div>
