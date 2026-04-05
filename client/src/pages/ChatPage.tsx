@@ -306,6 +306,22 @@ export default function ChatPage() {
       const decoder = new TextDecoder();
       let acum = "";
       let medsActualizados: Medicamento[] | null = null;
+      let bufferVoz = "";        // acumula texto para TTS
+      let ttsIniciado = false;   // ya disparamos el primer TTS
+
+      // Detectar fin de oración para hablar de forma progresiva
+      const SEPARADORES = /[.!?¡¿\n]/;
+
+      const hablarBuffer = (forzar = false) => {
+        if (vozSilenciada) return;
+        const hayFrase = SEPARADORES.test(bufferVoz);
+        if ((hayFrase || forzar) && bufferVoz.trim().length > 10) {
+          const textoAHablar = bufferVoz.trim();
+          bufferVoz = "";
+          ttsIniciado = true;
+          hablarTexto(textoAHablar);
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -315,19 +331,29 @@ export default function ChatPage() {
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.token) { acum += data.token; setStreamingText(acum); }
+            if (data.token) {
+              acum += data.token;
+              bufferVoz += data.token;
+              setStreamingText(acum);
+              // Hablar apenas tengamos una oración completa
+              hablarBuffer();
+            }
             if (data.done) { medsActualizados = data.medicamentos || null; }
           } catch { /* ignorar */ }
         }
+      }
+
+      // Hablar lo que quede en el buffer (última parte sin punto final)
+      if (bufferVoz.trim() && !vozSilenciada) {
+        hablarTexto(bufferVoz.trim());
+      } else if (!ttsIniciado && acum && !vozSilenciada) {
+        hablarTexto(acum);
       }
 
       const msgBot: Mensaje = { id: Date.now() + 1, rol: "assistant", contenido: acum, orden: mensajes.length + 1 };
       setMensajes(prev => [...prev, msgBot]);
       setStreamingText("");
       if (medsActualizados) setMedicamentos(medsActualizados);
-
-      // Leer en voz alta si modo voz o voz no silenciada
-      if (acum && !vozSilenciada) hablarTexto(acum);
 
     } catch {
       const errMsg = "Perdona, tuve un problemita. ¿Me repites eso?";
