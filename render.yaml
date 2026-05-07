@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: quetai
+    runtime: node
+    region: ohio          # Más cercano a Lima
+    plan: free
+    buildCommand: echo 'pre-built'
+    startCommand: NODE_ENV=production node dist/index.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000        # Render usa el puerto 10000
+      - key: TZ
+        value: America/Lima
+      - key: OPENAI_BASE_URL
+        sync: false         # Se configura manualmente en el dashboard
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: FCM_SERVICE_ACCOUNT
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ADMIN_PIN
+        value: "0069"
+    disk:
+      name: quetai-data
+      mountPath: /app/data
+      sizeGB: 1
+    healthCheckPath: /api/health
+    autoDeploy: true
+    branch: master
+    repo: https://github.com/dsilva2000/quetai

@@ -233,6 +233,11 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     }
   });
 
+  // ── Health check (Render keep-alive) ─────────────────────────────────────
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", time: new Date().toISOString(), tz: process.env.TZ || "UTC" });
+  });
+
   // ── Push: clave pública VAPID ────────────────────────────────────
   app.get("/api/push/vapid-key", (_req, res) => {
     res.json({ publicKey: VAPID_PUBLIC });

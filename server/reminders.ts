@@ -155,8 +155,22 @@ async function enviarRecordatorios() {
   }
 }
 
+// Auto-ping para mantener Render despierto (cada 14 minutos)
+function iniciarPingRender() {
+  const url = process.env.RENDER_EXTERNAL_URL;
+  if (!url) return; // Solo en Render
+  const ping = () => {
+    fetch(`${url}/api/health`)
+      .then(() => console.log("[ping] Keep-alive OK"))
+      .catch(() => {});
+  };
+  setInterval(ping, 14 * 60 * 1000); // 14 minutos
+  console.log("[ping] Auto-ping Render iniciado");
+}
+
 export function iniciarCronRecordatorios() {
   console.log("[cron] Cron de recordatorios iniciado");
+  iniciarPingRender();
 
   const tick = () => {
     enviarRecordatorios();
