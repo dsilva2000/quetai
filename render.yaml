@@ -4,7 +4,7 @@ services:
     runtime: node
     region: ohio          # Más cercano a Lima
     plan: free
-    buildCommand: echo 'pre-built'
+    buildCommand: npm install --omit=dev && npm rebuild better-sqlite3
     startCommand: NODE_ENV=production node dist/index.cjs
     envVars:
       - key: NODE_ENV
