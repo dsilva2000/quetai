@@ -4,8 +4,9 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 // - APK (Capacitor): usar URL absoluta de Railway
 // - Browser/Railway: URL relativa (mismo dominio)
 const isCapacitor = typeof (window as any).Capacitor !== "undefined";
+const BACKEND_URL = "https://quetai-app.fly.dev";
 export const API_BASE = import.meta.env.VITE_API_URL ||
-  (isCapacitor ? "https://quetai-production.up.railway.app" : "");
+  (isCapacitor ? BACKEND_URL : ""); // En browser: URL relativa (mismo servidor Fly.io)
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {

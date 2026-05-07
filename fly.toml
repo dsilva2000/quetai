@@ -1,0 +1,32 @@
+# Fly.io configuration for QUETAI
+app = "quetai-app"
+primary_region = "mia"  # Miami — closest to Lima, Peru
+
+[build]
+  # No Dockerfile needed — use nixpacks or just node
+  builder = "heroku/buildpacks:20"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  TZ = "America/Lima"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false   # NO dormir — siempre activo
+  auto_start_machines = true
+  min_machines_running = 1     # Mínimo 1 máquina siempre corriendo
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+[[vm]]
+  size = "shared-cpu-1x"       # Free tier: 256MB RAM
+  memory = "256mb"
+
+[[mounts]]
+  source = "quetai_data"
+  destination = "/app/data"    # Mismo path que Railway — SQLite persiste aquí
