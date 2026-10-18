@@ -41,6 +41,52 @@ test("ninguna muestra de SearchQuery es solo la ranura", () => {
   }
 });
 
+test("una ranura tiene el mismo tipo en todos los intents", () => {
+  for (const locale of LOCALES) {
+    const intents = modelo(locale).interactionModel.languageModel.intents as {
+      name: string;
+      slots?: { name: string; type: string }[];
+    }[];
+    const tipos = new Map<string, { type: string; intent: string }>();
+    for (const intent of intents) {
+      for (const slot of intent.slots || []) {
+        const previo = tipos.get(slot.name);
+        assert.ok(
+          !previo || previo.type === slot.type,
+          `${locale}: "${slot.name}" es ${previo?.type} en ${previo?.intent} y ${slot.type} en ${intent.name}`,
+        );
+        tipos.set(slot.name, { type: slot.type, intent: intent.name });
+      }
+    }
+  }
+});
+
+test("SearchQuery no comparte muestra con otra ranura", () => {
+  const marca = /\{([A-Za-z0-9_]+)\}/g;
+  for (const locale of LOCALES) {
+    const intents = modelo(locale).interactionModel.languageModel.intents as {
+      name: string;
+      slots?: { name: string; type: string }[];
+      samples?: string[];
+    }[];
+    for (const intent of intents) {
+      const frase = new Set(
+        (intent.slots || []).filter((slot) => slot.type === "AMAZON.SearchQuery").map((slot) => slot.name),
+      );
+      for (const sample of intent.samples || []) {
+        const usadas = [...sample.matchAll(marca)].map((m) => m[1]);
+        const tieneFrase = usadas.some((nombre) => frase.has(nombre));
+        if (!tieneFrase) continue;
+        assert.equal(
+          usadas.length,
+          1,
+          `${locale} ${intent.name}: "${sample}" mezcla una frase con otra ranura`,
+        );
+      }
+    }
+  }
+});
+
 test("las frases de ejemplo usan la invocación de dos palabras", () => {
   const skill = JSON.parse(readFileSync(path.join(RAIZ, "skill.json"), "utf8"));
   for (const locale of LOCALES) {
