@@ -1,4 +1,4 @@
-import { nombreAsistente, nombreHablado } from "../brand";
+import { capitalizarFrase, nombreAsistente, nombreHablado } from "../brand";
 import { resumenErrorLlm } from "../llm";
 import { respuestaDesdeTitulares, type TemaNoticia, type Titular } from "../noticias";
 import { extraerNombre, horaParaVoz, limpiarMedicamento, pareceHora, parseHoraLibre, textoDeCharla } from "./hora";
@@ -19,21 +19,21 @@ export interface UsuarioAlexa {
 }
 
 export interface AlexaMemory {
-  findUser(alexaUserId: string): UsuarioAlexa | null;
-  registerUser(alexaUserId: string, nombre: string, locale: string): UsuarioAlexa;
+  findUser(alexaUserId: string): Promise<UsuarioAlexa | null>;
+  registerUser(alexaUserId: string, nombre: string, locale: string): Promise<UsuarioAlexa>;
   /** Crea la sesión si no existe, sin inventar un nombre. */
-  asegurarUsuario(alexaUserId: string, locale: string): UsuarioAlexa;
-  setNombre(sessionId: string, nombre: string): void;
-  touch(alexaUserId: string, locale: string): void;
-  listMedicamentos(sessionId: string): { nombre: string; horario: string }[];
-  saveMedicamento(sessionId: string, nombre: string, horario: string): { created: boolean };
-  anotarIntercambio(sessionId: string, usuario: string, asistente: string): void;
-  clearConversacion(sessionId: string): void;
+  asegurarUsuario(alexaUserId: string, locale: string): Promise<UsuarioAlexa>;
+  setNombre(sessionId: string, nombre: string): Promise<void>;
+  touch(alexaUserId: string, locale: string): Promise<void>;
+  listMedicamentos(sessionId: string): Promise<{ nombre: string; horario: string }[]>;
+  saveMedicamento(sessionId: string, nombre: string, horario: string): Promise<{ created: boolean }>;
+  anotarIntercambio(sessionId: string, usuario: string, asistente: string): Promise<void>;
+  clearConversacion(sessionId: string): Promise<void>;
   conversar(sessionId: string, mensaje: string): Promise<string>;
-  setApodo(sessionId: string, apodo: string): void;
-  agregarTema(sessionId: string, tema: string): void;
-  agregarEvitar(sessionId: string, tema: string): void;
-  agregarFamilia(sessionId: string, texto: string): void;
+  setApodo(sessionId: string, apodo: string): Promise<void>;
+  agregarTema(sessionId: string, tema: string): Promise<void>;
+  agregarEvitar(sessionId: string, tema: string): Promise<void>;
+  agregarFamilia(sessionId: string, texto: string): Promise<void>;
   titulares(tema: TemaVoz): Promise<Titular[]>;
 }
 
@@ -158,7 +158,7 @@ function clasificarPresentacion(
   return null;
 }
 
-function aplicarPresentacion(
+async function aplicarPresentacion(
   deps: HandlerDeps,
   alexaUserId: string,
   locale: string,
@@ -167,7 +167,7 @@ function aplicarPresentacion(
   presentacion: { tipo: "nombre" | "apodo"; valor: string },
   now: Date,
   timeZone: string,
-): HandlerResult {
+): Promise<HandlerResult> {
   const next = { ...attributes };
   if (!presentacion.valor) {
     const primer = usuario && !sinNombre(usuario) ? comoSeDice(usuario) : "";
@@ -179,14 +179,14 @@ function aplicarPresentacion(
     return hablar(voz, { locale, attributes: next, reprompt: "Por ejemplo: me llamo María." });
   }
   if (presentacion.tipo === "apodo") {
-    const base = usuario || deps.memory.asegurarUsuario(alexaUserId, locale);
-    deps.memory.setApodo(base.sessionId, presentacion.valor);
+    const base = usuario || await deps.memory.asegurarUsuario(alexaUserId, locale);
+    await deps.memory.setApodo(base.sessionId, presentacion.valor);
     delete next.esperandoNombre;
     return hablar(`Listo. Desde ahora te digo ${presentacion.valor}. ¿De qué conversamos?`, { locale, attributes: next });
   }
   const eraNuevo = sinNombre(usuario);
-  const guardado = usuario || deps.memory.registerUser(alexaUserId, presentacion.valor, locale);
-  if (usuario) deps.memory.setNombre(usuario.sessionId, presentacion.valor);
+  const guardado = usuario || await deps.memory.registerUser(alexaUserId, presentacion.valor, locale);
+  if (usuario) await deps.memory.setNombre(usuario.sessionId, presentacion.valor);
   const actualizado: UsuarioAlexa = {
     ...guardado,
     nombre: presentacion.valor,
@@ -224,7 +224,7 @@ async function charlaSinNombre(
       attributes: { ...attributes, esperandoNombre: "si" },
     });
   }
-  const base = usuario || deps.memory.asegurarUsuario(alexaUserId, locale);
+  const base = usuario || await deps.memory.asegurarUsuario(alexaUserId, locale);
   try {
     if (deps.progreso) {
       try {
@@ -263,14 +263,15 @@ function hablar(
   } = {},
 ): HandlerResult {
   const end = !!opts.end;
+  const dicho = capitalizarFrase(texto);
   const attributes = { ...(opts.attributes || {}) };
-  if (!end) attributes.ultimaRespuesta = limpiarParaVoz(texto).slice(0, 500);
+  if (!end) attributes.ultimaRespuesta = limpiarParaVoz(dicho).slice(0, 500);
   const response: AlexaResponseBody["response"] = {
-    outputSpeech: { type: "SSML", ssml: toSsml(texto, opts.locale) },
+    outputSpeech: { type: "SSML", ssml: toSsml(dicho, opts.locale) },
     shouldEndSession: end,
   };
   if (!end) {
-    const reprompt = opts.reprompt || "Sigo aquí. ¿Quieres contarme algo más?";
+    const reprompt = capitalizarFrase(opts.reprompt || "Sigo aquí. ¿Quieres contarme algo más?");
     response.reprompt = { outputSpeech: { type: "SSML", ssml: toSsml(reprompt, opts.locale) } };
   }
   if (opts.cardPermisos) {
@@ -308,8 +309,12 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
 
   const attributes = attrsDe(body);
   const timeZone = deps.timeZone || "America/Lima";
-  let usuario = deps.memory.findUser(alexaUserId);
-  if (usuario) deps.memory.touch(alexaUserId, locale);
+  let usuario = await deps.memory.findUser(alexaUserId);
+  if (usuario) {
+    void Promise.resolve(deps.memory.touch(alexaUserId, locale)).catch((err: any) => {
+      console.error("[alexa] touch:", err?.message || err);
+    });
+  }
 
   if (tipo === "LaunchRequest") {
     if (sinNombre(usuario) && !usuario?.apodo) {
@@ -363,10 +368,10 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   if (sinNombre(usuario) && !INTENTS_CON_USUARIO.has(intent)) {
     return charlaSinNombre(body, deps, alexaUserId, locale, usuario, attributes);
   }
-  if (!usuario) usuario = deps.memory.asegurarUsuario(alexaUserId, locale);
+  if (!usuario) usuario = await deps.memory.asegurarUsuario(alexaUserId, locale);
 
   if (intent === "OlvidarConversacionIntent") {
-    deps.memory.clearConversacion(usuario.sessionId);
+    await deps.memory.clearConversacion(usuario.sessionId);
     const primer = comoSeDice(usuario);
     return hablar(`Listo, ${primer}. Olvidé la charla reciente. Sigo acordándome de ti y tus medicamentos siguen guardados. ¿De qué hablamos ahora?`, {
       locale,
@@ -383,7 +388,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   }
 
   if (intent === "ListarMedicamentosIntent") {
-    return hablar(textoMedicamentos(comoSeDice(usuario), deps.memory.listMedicamentos(usuario.sessionId)), {
+    return hablar(textoMedicamentos(comoSeDice(usuario), await deps.memory.listMedicamentos(usuario.sessionId)), {
       locale,
       attributes,
     });
@@ -490,7 +495,7 @@ async function responderPerfil(
         attributes,
       });
     }
-    deps.memory.setApodo(usuario.sessionId, apodo);
+    await deps.memory.setApodo(usuario.sessionId, apodo);
     return hablar(`Listo. Desde ahora te digo ${apodo}. ¿De qué conversamos?`, { locale, attributes });
   }
   if (intent === "GustosIntent") {
@@ -498,7 +503,7 @@ async function responderPerfil(
     if (!tema) {
       return hablar(`${primer}, ¿de qué te gusta hablar?`, { locale, attributes });
     }
-    deps.memory.agregarTema(usuario.sessionId, tema);
+    await deps.memory.agregarTema(usuario.sessionId, tema);
     return hablar(`Anotado, ${primer}. Te gusta ${tema}. ¿Qué me cuentas de eso?`, { locale, attributes });
   }
   if (intent === "EvitarTemaIntent") {
@@ -506,7 +511,7 @@ async function responderPerfil(
     if (!tema) {
       return hablar(`${primer}, ¿qué tema prefieres que no saque?`, { locale, attributes });
     }
-    deps.memory.agregarEvitar(usuario.sessionId, tema);
+    await deps.memory.agregarEvitar(usuario.sessionId, tema);
     return hablar(`Está bien, ${primer}. No voy a sacar el tema de ${tema}. ¿Hablamos de otra cosa?`, { locale, attributes });
   }
   if (intent === "FamiliaIntent") {
@@ -515,7 +520,7 @@ async function responderPerfil(
     if (!parentesco || !nombre) {
       return hablar("Dime el parentesco y el nombre. Por ejemplo: mi nieta se llama Rosa.", { locale, attributes });
     }
-    deps.memory.agregarFamilia(usuario.sessionId, `${parentesco} ${nombre}`);
+    await deps.memory.agregarFamilia(usuario.sessionId, `${parentesco} ${nombre}`);
     return hablar(`Qué lindo, ${primer}. Tu ${parentesco} se llama ${nombre}. ¿Cómo está?`, { locale, attributes });
   }
   return null;
@@ -574,7 +579,7 @@ async function guardarMedicamento(
   const medicamento = limpiarMedicamento(ctx.medicamento);
   const primer = comoSeDice(usuario);
   const horaVoz = horaParaVoz(horario);
-  const saved = deps.memory.saveMedicamento(usuario.sessionId, medicamento, horario);
+  const saved = await deps.memory.saveMedicamento(usuario.sessionId, medicamento, horario);
 
   const consent = body.context?.System?.user?.permissions?.consentToken;
   const token = body.context?.System?.apiAccessToken;
@@ -605,7 +610,7 @@ async function guardarMedicamento(
   const next = { ...ctx.attributes };
   delete next.medPendiente;
   try {
-    deps.memory.anotarIntercambio(
+    await deps.memory.anotarIntercambio(
       usuario.sessionId,
       `Recuérdame tomar ${medicamento} a las ${horaVoz}.`,
       speech,

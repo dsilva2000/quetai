@@ -4,10 +4,13 @@ import { storage } from "../storage";
 import type { AlexaMemory, TemaVoz } from "./handler";
 
 export const alexaMemory: AlexaMemory = {
-  findUser(alexaUserId) {
-    const row = storage.getAlexaUsuario(alexaUserId);
+  async findUser(alexaUserId) {
+    const sessionId = `alexa:${alexaUserId}`;
+    const [row, perfil] = await Promise.all([
+      storage.getAlexaUsuario(alexaUserId),
+      storage.getPerfil(sessionId),
+    ]);
     if (!row) return null;
-    const perfil = storage.getPerfil(row.sessionId);
     const nombre = row.nombre || "";
     return {
       sessionId: row.sessionId,
@@ -21,59 +24,60 @@ export const alexaMemory: AlexaMemory = {
     return storage.registerAlexaUsuario(alexaUserId, nombre, locale);
   },
 
-  asegurarUsuario(alexaUserId, locale) {
-    const ya = this.findUser(alexaUserId);
+  async asegurarUsuario(alexaUserId, locale) {
+    const ya = await this.findUser(alexaUserId);
     if (ya) return ya;
-    const creado = storage.registerAlexaUsuario(alexaUserId, "", locale);
+    const creado = await storage.registerAlexaUsuario(alexaUserId, "", locale);
     return { sessionId: creado.sessionId, nombre: "", nombrePendiente: true };
   },
 
-  setNombre(sessionId, nombre) {
-    storage.setNombreUsuario(sessionId, nombre);
+  async setNombre(sessionId, nombre) {
+    await storage.setNombreUsuario(sessionId, nombre);
   },
 
   touch(alexaUserId, locale) {
-    storage.touchAlexaUsuario(alexaUserId, locale);
+    return storage.touchAlexaUsuario(alexaUserId, locale);
   },
 
-  listMedicamentos(sessionId) {
-    return storage.getMedicamentos(sessionId).map((m) => ({ nombre: m.nombre, horario: m.horario }));
+  async listMedicamentos(sessionId) {
+    const meds = await storage.getMedicamentos(sessionId);
+    return meds.map((m) => ({ nombre: m.nombre, horario: m.horario }));
   },
 
-  saveMedicamento(sessionId, nombre, horario) {
-    const res = storage.upsertMedicamento(sessionId, nombre, horario);
+  async saveMedicamento(sessionId, nombre, horario) {
+    const res = await storage.upsertMedicamento(sessionId, nombre, horario);
     return { created: res.created };
   },
 
-  anotarIntercambio(sessionId, usuario, asistente) {
-    const historial = storage.getMensajes(sessionId);
+  async anotarIntercambio(sessionId, usuario, asistente) {
+    const historial = await storage.getMensajes(sessionId);
     const orden = historial.length;
-    storage.addMensaje(sessionId, "user", usuario, orden);
-    storage.addMensaje(sessionId, "assistant", asistente, orden + 1);
+    await storage.addMensaje(sessionId, "user", usuario, orden);
+    await storage.addMensaje(sessionId, "assistant", asistente, orden + 1);
   },
 
   clearConversacion(sessionId) {
-    storage.clearMensajes(sessionId);
+    return storage.clearMensajes(sessionId);
   },
 
   conversar(sessionId, mensaje) {
     return conversar(sessionId, mensaje, "alexa");
   },
 
-  setApodo(sessionId, apodo) {
-    storage.savePerfil(sessionId, { apodo }, "replace");
+  async setApodo(sessionId, apodo) {
+    await storage.savePerfil(sessionId, { apodo }, "replace");
   },
 
-  agregarTema(sessionId, tema) {
-    storage.savePerfil(sessionId, { temas: tema }, "append");
+  async agregarTema(sessionId, tema) {
+    await storage.savePerfil(sessionId, { temas: tema }, "append");
   },
 
-  agregarEvitar(sessionId, tema) {
-    storage.savePerfil(sessionId, { evitar: tema }, "append");
+  async agregarEvitar(sessionId, tema) {
+    await storage.savePerfil(sessionId, { evitar: tema }, "append");
   },
 
-  agregarFamilia(sessionId, texto) {
-    storage.savePerfil(sessionId, { familia: texto }, "append");
+  async agregarFamilia(sessionId, texto) {
+    await storage.savePerfil(sessionId, { familia: texto }, "append");
   },
 
   async titulares(tema: TemaVoz) {

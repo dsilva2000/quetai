@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { Server } from "http";
 import webpush from "web-push";
+import { conCache } from "./cache-peticion";
 import { inicializarFCM } from "./fcm";
 import { storage } from "./storage";
 import { registerAlexaRoutes } from "./alexa/route";
@@ -39,57 +40,62 @@ export const vapidPublicKey = VAPID_PUBLIC;
 
 // ─── Routes ────────────────────────────────────────────────────────────────────
 export function registerRoutes(_httpServer: Server, app: Express) {
+  app.use((_req, _res, next) => {
+    conCache(() => next());
+  });
   registerLegalRoutes(app);
   registerAlexaRoutes(app);
 
   // ── Sesión del usuario ───────────────────────────────────────────
-  app.get("/api/session/:sessionId", (req, res) => {
-    const usuario = storage.getUsuario(req.params.sessionId);
+  app.get("/api/session/:sessionId", async (req, res) => {
+    const [usuario, meds] = await Promise.all([
+      storage.getUsuario(req.params.sessionId),
+      storage.getMedicamentos(req.params.sessionId),
+    ]);
     if (!usuario) return res.json({ existe: false });
-    const meds = storage.getMedicamentos(req.params.sessionId);
     res.json({ existe: true, usuario, medicamentos: meds });
   });
 
   // ── Guardar teléfono del usuario (WhatsApp) ──────────────────────────
-  app.post("/api/session/:sessionId/telefono", (req, res) => {
+  app.post("/api/session/:sessionId/telefono", async (req, res) => {
     const { telefono } = req.body;
     if (!telefono?.trim()) return res.status(400).json({ error: "teléfono requerido" });
     // Limpiar: solo números y +
     const tel = telefono.trim().replace(/[^+\d]/g, "");
-    storage.savePhone(req.params.sessionId, tel);
+    await storage.savePhone(req.params.sessionId, tel);
     res.json({ ok: true });
   });
 
-  app.post("/api/session/:sessionId/registro", (req, res) => {
+  app.post("/api/session/:sessionId/registro", async (req, res) => {
     const { sessionId } = req.params;
     const { nombre } = req.body;
     if (!nombre?.trim()) return res.status(400).json({ error: "Nombre requerido" });
-    const existente = storage.getUsuario(sessionId);
+    const existente = await storage.getUsuario(sessionId);
     if (existente) return res.json(existente);
-    const usuario = storage.createUsuario(sessionId, nombre.trim());
+    const usuario = await storage.createUsuario(sessionId, nombre.trim());
     res.json(usuario);
   });
 
   // ── Mensajes ─────────────────────────────────────────────────────
-  app.get("/api/session/:sessionId/mensajes", (req, res) => {
-    res.json(storage.getMensajes(req.params.sessionId));
+  app.get("/api/session/:sessionId/mensajes", async (req, res) => {
+    res.json(await storage.getMensajes(req.params.sessionId));
   });
 
   // ── Medicamentos ─────────────────────────────────────────────────
-  app.get("/api/session/:sessionId/medicamentos", (req, res) => {
-    res.json(storage.getMedicamentos(req.params.sessionId));
+  app.get("/api/session/:sessionId/medicamentos", async (req, res) => {
+    res.json(await storage.getMedicamentos(req.params.sessionId));
   });
 
-  app.post("/api/session/:sessionId/medicamentos", (req, res) => {
+  app.post("/api/session/:sessionId/medicamentos", async (req, res) => {
     const { nombre, horario } = req.body;
     if (!nombre?.trim() || !horario?.trim())
       return res.status(400).json({ error: "nombre y horario requeridos" });
-    const med = storage.addMedicamento(req.params.sessionId, nombre.trim(), horario.trim());
+    const med = await storage.addMedicamento(req.params.sessionId, nombre.trim(), horario.trim());
     res.json(med);
   });
 
-  app.delete("/api/session/:sessionId/medicamentos/:id", (req, res) => {
-    storage.deleteMedicamento(Number(req.params.id));
+  app.delete("/api/session/:sessionId/medicamentos/:id", async (req, res) => {
+    await storage.deleteMedicamento(Number(req.params.id));
     res.json({ ok: true });
   });
 
@@ -100,14 +106,18 @@ export function registerRoutes(_httpServer: Server, app: Express) {
 
     if (!mensaje?.trim()) return res.status(400).json({ error: "Mensaje vacío" });
 
-    const usuario = storage.getUsuario(sessionId);
+    const [usuario, meds, historial] = await Promise.all([
+      storage.getUsuario(sessionId),
+      storage.getMedicamentos(sessionId),
+      storage.getMensajes(sessionId),
+      storage.getPerfil(sessionId),
+      storage.getMemoria(sessionId),
+    ]);
     if (!usuario) return res.status(404).json({ error: "Sesión no encontrada" });
 
-    const meds = storage.getMedicamentos(sessionId);
-    const historial = storage.getMensajes(sessionId);
     const orden = historial.length;
 
-    storage.addMensaje(sessionId, "user", mensaje.trim(), orden);
+    await storage.addMensaje(sessionId, "user", mensaje.trim(), orden);
 
     const systemPrompt = await promptDeSesion(sessionId, usuario.nombre, meds, historial, "web");
     const conv = armarContexto(usuario.nombre, historial, mensaje.trim());
@@ -131,16 +141,16 @@ export function registerRoutes(_httpServer: Server, app: Express) {
       }
 
       if (respuestaCompleta) {
-        storage.addMensaje(sessionId, "assistant", respuestaCompleta, orden + 1);
+        await storage.addMensaje(sessionId, "assistant", respuestaCompleta, orden + 1);
         programarActualizacionMemoria(sessionId);
         const med = detectarMedicamento(respuestaCompleta);
         if (med && med.nombre.length > 2) {
           const ya = meds.some((m) => m.nombre.toLowerCase() === med.nombre.toLowerCase());
-          if (!ya) storage.addMedicamento(sessionId, med.nombre, med.horario);
+          if (!ya) await storage.addMedicamento(sessionId, med.nombre, med.horario);
         }
       }
 
-      const medsFinales = storage.getMedicamentos(sessionId);
+      const medsFinales = await storage.getMedicamentos(sessionId);
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: medsFinales })}\n\n`);
       res.end();
     } catch (err: any) {
@@ -157,7 +167,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
       } catch (err2: any) {
         logLlm("chat.fallback.error", modeloFallback(), Date.now(), err2);
       }
-      if (!fb.trim()) fb = tropiezoDe(usuario.nombre, storage.getPerfil(sessionId).apodo);
+      if (!fb.trim()) fb = tropiezoDe(usuario.nombre, (await storage.getPerfil(sessionId)).apodo);
       res.write(`data: ${JSON.stringify({ token: fb })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: meds })}\n\n`);
       res.end();
@@ -175,13 +185,13 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   });
 
   // ── FCM: registrar token del APK ──────────────────────────────────
-  app.post("/api/fcm/token", (req, res) => {
+  app.post("/api/fcm/token", async (req, res) => {
     const { sessionId, token } = req.body;
     if (!sessionId || !token) {
       return res.status(400).json({ error: "sessionId y token requeridos" });
     }
     try {
-      storage.saveFcmToken(sessionId, token);
+      await storage.saveFcmToken(sessionId, token);
       console.log(`[fcm] Token registrado para sesión ${sessionId.slice(0,8)}...`);
       res.json({ ok: true });
     } catch (err: any) {
@@ -191,13 +201,13 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   });
 
   // ── Push: guardar suscripción ──────────────────────────────────────
-  app.post("/api/push/subscribe", (req, res) => {
+  app.post("/api/push/subscribe", async (req, res) => {
     const { sessionId, subscription } = req.body;
     if (!sessionId || !subscription?.endpoint) {
       return res.status(400).json({ error: "Datos incompletos" });
     }
     try {
-      storage.savePushSuscripcion(
+      await storage.savePushSuscripcion(
         sessionId,
         subscription.endpoint,
         subscription.keys?.p256dh || "",
@@ -211,19 +221,19 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   });
 
   // ── Push: eliminar suscripción ─────────────────────────────────────
-  app.post("/api/push/unsubscribe", (req, res) => {
+  app.post("/api/push/unsubscribe", async (req, res) => {
     const { endpoint } = req.body;
-    if (endpoint) storage.deletePushSuscripcion(endpoint);
+    if (endpoint) await storage.deletePushSuscripcion(endpoint);
     res.json({ ok: true });
   });
 
   // ── Recordatorios pendientes (polling desde el frontend) ────────────────
-  app.get("/api/session/:sessionId/recordatorios-ahora", (req, res) => {
+  app.get("/api/session/:sessionId/recordatorios-ahora", async (req, res) => {
     const { sessionId } = req.params;
-    const usuario = storage.getUsuario(sessionId);
+    const usuario = await storage.getUsuario(sessionId);
     if (!usuario) return res.json({ recordatorios: [] });
 
-    const meds = storage.getMedicamentos(sessionId);
+    const meds = await storage.getMedicamentos(sessionId);
     if (!meds.length) return res.json({ recordatorios: [] });
 
     const ahora = new Date();
@@ -340,8 +350,8 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   });
 
   // ── Resetear conversación ─────────────────────────────────────────
-  app.delete("/api/session/:sessionId/mensajes", (req, res) => {
-    storage.clearMensajes(req.params.sessionId);
+  app.delete("/api/session/:sessionId/mensajes", async (req, res) => {
+    await storage.clearMensajes(req.params.sessionId);
     res.json({ ok: true });
   });
 
@@ -364,24 +374,26 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   }
 
   // ── Admin: ver tokens FCM registrados ────────────────────────────────
-  app.get("/api/admin/fcm-tokens", adminAuth, (_req, res) => {
-    const usuarios = storage.getAllUsuarios();
-    const resultado = usuarios.map(u => {
-      const tokens = storage.getFcmTokensBySession(u.sessionId);
-      const meds = storage.getMedicamentos(u.sessionId);
+  app.get("/api/admin/fcm-tokens", adminAuth, async (_req, res) => {
+    const usuarios = await storage.getAllUsuarios();
+    const resultado = await Promise.all(usuarios.map(async (u) => {
+      const [tokens, meds] = await Promise.all([
+        storage.getFcmTokensBySession(u.sessionId),
+        storage.getMedicamentos(u.sessionId),
+      ]);
       return { nombre: u.nombre, sessionId: u.sessionId, fcmTokens: tokens.length, medicamentos: meds.length };
-    }).filter(u => u.fcmTokens > 0 || u.medicamentos > 0);
-    res.json(resultado);
+    }));
+    res.json(resultado.filter(u => u.fcmTokens > 0 || u.medicamentos > 0));
   });
 
   // ── Admin: enviar notificación de prueba FCM ──────────────────────
   app.post("/api/admin/test-fcm", adminAuth, async (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) return res.status(400).json({ error: "sessionId requerido" });
-    const tokens = storage.getFcmTokensBySession(sessionId);
+    const tokens = await storage.getFcmTokensBySession(sessionId);
     if (!tokens.length) return res.json({ ok: false, error: "No hay tokens FCM para esta sesión" });
-    const usuario = storage.getUsuario(sessionId);
-    const nombre = usuario?.nombre.split(" ")[0] || "amigo";
+    const usuario = await storage.getUsuario(sessionId);
+    const nombre = usuario?.nombre.split(" ")[0] || "Amigo";
     let enviados = 0;
     for (const token of tokens) {
       const { enviarFCM: fcm } = await import("./fcm");
@@ -392,45 +404,47 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   });
 
   // ── Admin: estadísticas generales ────────────────────────────────
-  app.get("/api/admin/stats", adminAuth, (_req, res) => {
-    res.json(storage.getStats());
+  app.get("/api/admin/stats", adminAuth, async (_req, res) => {
+    res.json(await storage.getStats());
   });
 
   // ── Admin: lista de todos los usuarios ───────────────────────────
-  app.get("/api/admin/usuarios", adminAuth, (_req, res) => {
-    const usuarios = storage.getAllUsuarios();
-    const resultado = usuarios.map((u) => {
-      const meds = storage.getMedicamentos(u.sessionId);
-      const msgCount = storage.getMensajesCount(u.sessionId);
-      const perfil = storage.getPerfil(u.sessionId);
+  app.get("/api/admin/usuarios", adminAuth, async (_req, res) => {
+    const usuarios = await storage.getAllUsuarios();
+    const resultado = await Promise.all(usuarios.map(async (u) => {
+      const [meds, msgCount, perfil] = await Promise.all([
+        storage.getMedicamentos(u.sessionId),
+        storage.getMensajesCount(u.sessionId),
+        storage.getPerfil(u.sessionId),
+      ]);
       return { ...u, medicamentos: meds, mensajesCount: msgCount, perfil };
-    });
+    }));
     res.json(resultado);
   });
 
   // ── Admin: ver conversación de un usuario ─────────────────────────
-  app.get("/api/admin/usuarios/:sessionId/mensajes", adminAuth, (req, res) => {
-    const msgs = storage.getMensajes(req.params.sessionId, 500);
+  app.get("/api/admin/usuarios/:sessionId/mensajes", adminAuth, async (req, res) => {
+    const msgs = await storage.getMensajes(req.params.sessionId, 500);
     res.json(msgs);
   });
 
   // ── Admin: borrar usuario completo ────────────────────────────────
-  app.delete("/api/admin/usuarios/:sessionId", adminAuth, (req, res) => {
-    storage.deleteUsuario(req.params.sessionId);
+  app.delete("/api/admin/usuarios/:sessionId", adminAuth, async (req, res) => {
+    await storage.deleteUsuario(req.params.sessionId);
     res.json({ ok: true });
   });
 
   // ── Admin: borrar solo conversación ──────────────────────────────
-  app.delete("/api/admin/usuarios/:sessionId/mensajes", adminAuth, (req, res) => {
-    storage.clearMensajes(req.params.sessionId);
+  app.delete("/api/admin/usuarios/:sessionId/mensajes", adminAuth, async (req, res) => {
+    await storage.clearMensajes(req.params.sessionId);
     res.json({ ok: true });
   });
 
-  app.put("/api/admin/usuarios/:sessionId/perfil", adminAuth, (req, res) => {
+  app.put("/api/admin/usuarios/:sessionId/perfil", adminAuth, async (req, res) => {
     const sessionId = req.params.sessionId;
-    if (!storage.getUsuario(sessionId)) return res.status(404).json({ error: "Sesión no encontrada" });
+    if (!await storage.getUsuario(sessionId)) return res.status(404).json({ error: "Sesión no encontrada" });
     const body = req.body || {};
-    const perfil = storage.savePerfil(sessionId, {
+    const perfil = await storage.savePerfil(sessionId, {
       apodo: String(body.apodo ?? ""),
       temas: String(body.temas ?? ""),
       evitar: String(body.evitar ?? ""),

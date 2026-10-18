@@ -27,7 +27,7 @@ En el teléfono o el navegador, la sesión aparece cuando la persona escribe su 
    - **Notas:** lo que el cuidador quiera que el asistente tenga en cuenta
 5. **Guardar perfil**.
 
-A partir del siguiente turno, la voz y el chat usan ese perfil. El resumen de charlas viejas se arma solo, en SQLite, cuando ya hay bastante conversación. «Empecemos de nuevo» borra los mensajes recientes y deja el perfil y ese resumen.
+A partir del siguiente turno, la voz y el chat usan ese perfil. El resumen de charlas viejas se arma solo, en Supabase (o en SQLite si no hay clave), cuando ya hay bastante conversación. «Empecemos de nuevo» borra los mensajes recientes y deja el perfil y ese resumen.
 
 ## 3. Por voz
 

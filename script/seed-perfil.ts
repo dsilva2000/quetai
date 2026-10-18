@@ -29,28 +29,36 @@ if (!ruta) {
 }
 
 const data = JSON.parse(fs.readFileSync(ruta, "utf8")) as Semilla;
-let sessionId = (data.sessionId || "").trim();
 
-if (!sessionId && data.alexaUserId) {
-  const creado = storage.registerAlexaUsuario(data.alexaUserId.trim(), (data.nombre || "Familiar").trim(), data.locale || "es-US");
-  sessionId = creado.sessionId;
+async function main() {
+  let sessionId = (data.sessionId || "").trim();
+
+  if (!sessionId && data.alexaUserId) {
+    const creado = await storage.registerAlexaUsuario(data.alexaUserId.trim(), (data.nombre || "Familiar").trim(), data.locale || "es-US");
+    sessionId = creado.sessionId;
+  }
+
+  if (!sessionId) {
+    console.error("El JSON necesita sessionId o alexaUserId.");
+    process.exit(1);
+  }
+
+  if (!await storage.getUsuario(sessionId)) {
+    await storage.createUsuario(sessionId, (data.nombre || "Familiar").trim());
+  }
+
+  const perfil = await storage.savePerfil(sessionId, {
+    apodo: data.apodo ?? "",
+    temas: data.temas ?? "",
+    evitar: data.evitar ?? "",
+    familia: data.familia ?? "",
+    notas: data.notas ?? "",
+  }, "replace");
+
+  console.log("Perfil guardado para", perfil.sessionId);
 }
 
-if (!sessionId) {
-  console.error("El JSON necesita sessionId o alexaUserId.");
+main().catch((err) => {
+  console.error(err?.message || err);
   process.exit(1);
-}
-
-if (!storage.getUsuario(sessionId)) {
-  storage.createUsuario(sessionId, (data.nombre || "Familiar").trim());
-}
-
-const perfil = storage.savePerfil(sessionId, {
-  apodo: data.apodo ?? "",
-  temas: data.temas ?? "",
-  evitar: data.evitar ?? "",
-  familia: data.familia ?? "",
-  notas: data.notas ?? "",
-}, "replace");
-
-console.log("Perfil guardado para", perfil.sessionId);
+});

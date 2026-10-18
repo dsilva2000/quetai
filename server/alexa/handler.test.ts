@@ -238,6 +238,15 @@ test("si el modelo falla, responde con calma", async () => {
   assert.equal((res.body as AlexaResponseBody).response.shouldEndSession, false);
 });
 
+test("sin nombre, la charla empieza con Amigo", async () => {
+  const mem = memoria();
+  const res = await handleAlexaRequest(
+    pedido({ intent: "CharlarIntent" }),
+    { memory: mem, skillId: SKILL, now: () => AHORA },
+  );
+  assert.match(ssml(res), /Amigo, aquí estoy/);
+});
+
 test("fallback, ayuda, repetir y parar", async () => {
   const mem = memoria({ nombre: "María" });
   const deps = { memory: mem, skillId: SKILL, now: () => AHORA, timeZone: "America/Lima" };

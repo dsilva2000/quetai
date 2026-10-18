@@ -2,6 +2,7 @@
 // Prioriza FCM (APK nativo) sobre VAPID (web push)
 
 import webpush from "web-push";
+import { conCache } from "./cache-peticion";
 import { enviarFCM } from "./fcm";
 import { storage } from "./storage";
 
@@ -74,6 +75,10 @@ async function enviarWhatsApp(telefono: string, mensaje: string, uid: string): P
 }
 
 async function enviarRecordatorios() {
+  await conCache(() => enviarRecordatoriosDentro());
+}
+
+async function enviarRecordatoriosDentro() {
   try {
     const ahora = new Date();
     const horaActual = ahora.getHours();
@@ -81,14 +86,14 @@ async function enviarRecordatorios() {
     const fechaHoraKey = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')} ${String(horaActual).padStart(2,'0')}:${String(minActual).padStart(2,'0')}`;
 
     // ── 1. FCM (APK nativo — funciona con app cerrada) ────────────────────
-    const registrosFCM = storage.getMedicamentosConFCM();
+    const registrosFCM = await storage.getMedicamentosConFCM();
     console.log(`[cron] Verificando ${registrosFCM.length} med+FCM tokens a las ${horaActual}:${String(minActual).padStart(2,'0')}`);
 
     for (const r of registrosFCM) {
       const parsed = parsearHorario(r.horario);
       if (!parsed) continue;
       if (parsed.horas !== horaActual || parsed.minutos !== minActual) continue;
-      if (storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
+      if (await storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
 
       const { title, body } = getMensaje(r.usuarioNombre, r.nombre, r.horario);
       console.log(`[fcm] Intentando enviar a ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
@@ -100,38 +105,38 @@ async function enviarRecordatorios() {
       });
 
       if (ok) {
-        storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
+        await storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
         console.log(`[fcm] ✓ Recordatorio enviado: ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
       } else {
         console.log(`[fcm] Token inválido para ${r.usuarioNombre}, eliminando`);
-        storage.deleteFcmToken(r.token);
+        await storage.deleteFcmToken(r.token);
       }
     }
 
     // ── 2. WhatsApp (fallback universal — funciona en cualquier celular) ────
     const WABOXAPP_UID = process.env.WABOXAPP_UID || "";
     if (WABOXAPP_UID) {
-      const registrosWA = storage.getMedicamentosConTelefono();
+      const registrosWA = await storage.getMedicamentosConTelefono();
       for (const r of registrosWA) {
         const parsed = parsearHorario(r.horario);
         if (!parsed) continue;
         if (parsed.horas !== horaActual || parsed.minutos !== minActual) continue;
-        if (storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
+        if (await storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
         const primer = r.usuarioNombre.split(" ")[0];
         const msg = `💊 Hola ${primer}, es hora de tomar tu ${r.nombre} (${r.horario}). - QUETAI`;
         const ok = await enviarWhatsApp(r.telefono, msg, WABOXAPP_UID);
-        if (ok) storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
+        if (ok) await storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
       }
     }
 
     // ── 3. VAPID (webapp PWA instalada) ───────────────────────────────────
-    const registrosVAPID = storage.getMedicamentosParaRecordatorio();
+    const registrosVAPID = await storage.getMedicamentosParaRecordatorio();
 
     for (const r of registrosVAPID) {
       const parsed = parsearHorario(r.horario);
       if (!parsed) continue;
       if (parsed.horas !== horaActual || parsed.minutos !== minActual) continue;
-      if (storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
+      if (await storage.yaSeEnvioRecordatorio(r.sessionId, r.medId, fechaHoraKey)) continue;
 
       const { title, body } = getMensaje(r.usuarioNombre, r.nombre, r.horario);
       const payload = JSON.stringify({ title, body, tag: `med-${r.medId}`, sessionId: r.sessionId });
@@ -139,11 +144,11 @@ async function enviarRecordatorios() {
 
       try {
         await webpush.sendNotification(subscription, payload);
-        storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
+        await storage.registrarRecordatorioEnviado(r.sessionId, r.medId);
         console.log(`[push] ✓ Recordatorio enviado: ${r.usuarioNombre} → ${r.nombre} @ ${r.horario}`);
       } catch (err: any) {
         if (err?.statusCode === 410) {
-          storage.deletePushSuscripcion(r.endpoint);
+          await storage.deletePushSuscripcion(r.endpoint);
         } else {
           console.error(`[push] Error enviando a ${r.usuarioNombre}:`, err?.message);
         }

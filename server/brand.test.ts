@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nombreAsistente, nombreHablado, noticiasActivas } from "./brand.ts";
+import { capitalizarFrase, nombreAsistente, nombreHablado, noticiasActivas } from "./brand.ts";
 import { modeloFallback, modeloPrincipal, resumenErrorLlm, timeoutAlexaMs } from "./llm.ts";
 
 test("el nombre del asistente sale del entorno", () => {
@@ -11,7 +11,13 @@ test("el nombre del asistente sale del entorno", () => {
 test("el apodo gana al nombre legal", () => {
   assert.equal(nombreHablado("María López", "Queta"), "Queta");
   assert.equal(nombreHablado("María López", "  "), "María");
-  assert.equal(nombreHablado("", ""), "amigo");
+  assert.equal(nombreHablado("", ""), "Amigo");
+});
+
+test("la primera letra de la frase va en mayúscula", () => {
+  assert.equal(capitalizarFrase("amigo, aquí estoy"), "Amigo, aquí estoy");
+  assert.equal(capitalizarFrase("¿cómo estás?"), "¿Cómo estás?");
+  assert.equal(capitalizarFrase("Buenos días"), "Buenos días");
 });
 
 test("las noticias se apagan solo con false", () => {
