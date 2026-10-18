@@ -8,16 +8,26 @@
           "slots": [
             {
               "name": "frase",
-              "type": "FRASE_LIBRE"
+              "type": "AMAZON.SearchQuery"
             }
           ],
           "samples": [
-            "{frase}",
             "quiero decir {frase}",
             "te cuento {frase}",
+            "te cuento que {frase}",
             "oye {frase}",
             "escucha {frase}",
-            "sabes que {frase}"
+            "sabes que {frase}",
+            "hoy {frase}",
+            "ayer {frase}",
+            "fui {frase}",
+            "estoy {frase}",
+            "me siento {frase}",
+            "acabo de {frase}",
+            "es que {frase}",
+            "resulta que {frase}",
+            "quería contarte {frase}",
+            "queria contarte {frase}"
           ]
         },
         {
@@ -325,19 +335,6 @@
         }
       ],
       "types": [
-        {
-          "name": "FRASE_LIBRE",
-          "values": [
-            { "name": { "value": "cómo estás" } },
-            { "name": { "value": "cómo te fue hoy" } },
-            { "name": { "value": "extraño a mi familia" } },
-            { "name": { "value": "vinieron mis nietos" } },
-            { "name": { "value": "qué puedo cocinar" } },
-            { "name": { "value": "me siento un poco solo" } },
-            { "name": { "value": "cuéntame un recuerdo" } },
-            { "name": { "value": "hoy salí a caminar" } }
-          ]
-        },
         {
           "name": "NOMBRE_PROPIO",
           "values": [

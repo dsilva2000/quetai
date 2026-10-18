@@ -34,6 +34,9 @@ export interface AlexaRequestBody {
     timestamp?: string;
     locale?: string;
     reason?: string;
+    /** Texto oído, si la plataforma lo manda. Fallback a menudo no lo trae. */
+    transcript?: string;
+    inputTranscript?: string;
     intent?: AlexaIntent;
   };
 }

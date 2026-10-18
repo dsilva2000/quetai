@@ -8,11 +8,28 @@ export const alexaMemory: AlexaMemory = {
     const row = storage.getAlexaUsuario(alexaUserId);
     if (!row) return null;
     const perfil = storage.getPerfil(row.sessionId);
-    return { sessionId: row.sessionId, nombre: row.nombre, apodo: perfil.apodo || undefined };
+    const nombre = row.nombre || "";
+    return {
+      sessionId: row.sessionId,
+      nombre,
+      apodo: perfil.apodo || undefined,
+      nombrePendiente: !nombre.trim(),
+    };
   },
 
   registerUser(alexaUserId, nombre, locale) {
     return storage.registerAlexaUsuario(alexaUserId, nombre, locale);
+  },
+
+  asegurarUsuario(alexaUserId, locale) {
+    const ya = this.findUser(alexaUserId);
+    if (ya) return ya;
+    const creado = storage.registerAlexaUsuario(alexaUserId, "", locale);
+    return { sessionId: creado.sessionId, nombre: "", nombrePendiente: true };
+  },
+
+  setNombre(sessionId, nombre) {
+    storage.setNombreUsuario(sessionId, nombre);
   },
 
   touch(alexaUserId, locale) {

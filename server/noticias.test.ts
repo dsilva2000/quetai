@@ -122,6 +122,20 @@ test("capitaliza, quita el dateline y no lee una URL", () => {
   assert.equal(dicho.includes("notiperu.com"), false);
 });
 
+test("un titular en Title Case se lee como frase", () => {
+  const listo = prepararTitular("Extorsión Golpea a la Política Nacional - RPP");
+  assert.ok(listo);
+  assert.equal(listo!.titulo, "Extorsión golpea a la política nacional");
+  assert.equal(listo!.medio, "RPP");
+  const propio = prepararTitular("El Congreso Debatió el Presupuesto en Lima - Andina");
+  assert.equal(propio!.titulo, "El Congreso debatió el presupuesto en Lima");
+  const dicho = respuestaDesdeTitulares("politica", [
+    { tema: "politica", titulo: "Extorsión Golpea a la Política Nacional", medio: "RPP" },
+  ], "Queta");
+  assert.match(dicho, /Extorsión golpea a la política nacional/);
+  assert.equal(/Golpea/.test(dicho), false);
+});
+
 test("no repite titulares casi iguales", () => {
   const items = [
     { tema: "politica" as const, titulo: "El MEF anuncia política fiscal contracíclica para el 2027", medio: "El Peruano" },

@@ -120,6 +120,72 @@ export function capitalizarInicio(texto: string): string {
   return limpio.charAt(0).toUpperCase() + limpio.slice(1);
 }
 
+const PROPIOS: Record<string, string> = {
+  peru: "Perú",
+  lima: "Lima",
+  callao: "Callao",
+  cusco: "Cusco",
+  cuzco: "Cuzco",
+  arequipa: "Arequipa",
+  trujillo: "Trujillo",
+  piura: "Piura",
+  chiclayo: "Chiclayo",
+  iquitos: "Iquitos",
+  huancayo: "Huancayo",
+  ayacucho: "Ayacucho",
+  puno: "Puno",
+  tacna: "Tacna",
+  congreso: "Congreso",
+  miraflores: "Miraflores",
+  boluarte: "Boluarte",
+  fujimori: "Fujimori",
+};
+
+function letrasDe(token: string): string {
+  return token.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "");
+}
+
+function esTitleCase(token: string): boolean {
+  const letras = letrasDe(token);
+  if (letras.length < 3) return false;
+  if (letras === letras.toLocaleUpperCase("es")) return false;
+  return letras.charAt(0) === letras.charAt(0).toLocaleUpperCase("es")
+    && letras.charAt(1) === letras.charAt(1).toLocaleLowerCase("es");
+}
+
+function esAcronimo(token: string): boolean {
+  const letras = letrasDe(token);
+  return letras.length >= 2 && letras.length <= 6 && letras === letras.toLocaleUpperCase("es") && /[A-ZÁÉÍÓÚÜÑ]/.test(letras);
+}
+
+/** Baja un titular gritón a frase, y deja siglas y algunos nombres propios. */
+export function aOracion(texto: string): string {
+  const tokens = texto.split(/\s+/).filter(Boolean);
+  const significativas = tokens.filter((token) => letrasDe(token).length >= 3);
+  const enTitulo = significativas.filter(esTitleCase);
+  if (significativas.length < 3 || enTitulo.length / significativas.length < 0.6) {
+    return capitalizarInicio(texto);
+  }
+  let primera = true;
+  return tokens.map((token) => {
+    if (esAcronimo(token)) {
+      primera = false;
+      return token;
+    }
+    const clave = letrasDe(token).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (PROPIOS[clave]) {
+      primera = false;
+      return token.replace(letrasDe(token), PROPIOS[clave]);
+    }
+    const bajo = token.toLocaleLowerCase("es");
+    if (primera) {
+      primera = false;
+      return capitalizarInicio(bajo);
+    }
+    return bajo;
+  }).join(" ");
+}
+
 const TOKENS_VACIOS = new Set(["para", "hoy", "dio", "los", "las", "una", "uno", "del", "con", "por", "que", "sus", "esta", "este"]);
 
 export function tokensTitular(texto: string): string[] {
@@ -183,7 +249,7 @@ export function prepararTitular(crudo: string): { titulo: string; medio: string 
   const separado = separarMedio(base);
   if (FUENTES_DESCARTADAS.has(separado.medio.toLowerCase())) return null;
   let titulo = recortarEnPalabra(quitarFrecuencias(quitarPrefijos(separado.titulo)));
-  titulo = capitalizarInicio(titulo.replace(/[\s|.,:;!-]+$/g, "").trim());
+  titulo = aOracion(titulo.replace(/[\s|.,:;!\-…]+$/g, "").trim());
   if (titulo.length < 12) return null;
   return { titulo, medio: medioHablado(separado.medio) };
 }

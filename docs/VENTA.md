@@ -15,7 +15,7 @@ Para publicar en la tienda de Alexa (o dejarla en beta solo para Echos invitados
 5. **Permiso de recordatorios.** Justifícalo: la persona pide «recuérdame tomar … a las …» y el aviso suena en ese Echo. Si no acepta el permiso, igual queda anotado y se muestra la tarjeta de consentimiento.
 6. **Niños.** La skill es para adultos mayores. Márcala como no dirigida a niños.
 7. **Pruebas.** El simulador y un Echo en beta, en los tres idiomas. Invocación, chisme, política, apodo, un medicamento y «para».
-8. **Endpoint.** `https://quetai.onrender.com/api/alexa`, firma activa, `ALEXA_SKILL_ID` puesto. `/api/health` debe decir `"version": "alexa-v3.2"`.
+8. **Endpoint.** `https://quetai.onrender.com/api/alexa`, firma activa, `ALEXA_SKILL_ID` puesto. `/api/health` debe decir `"version": "alexa-v3.3"`.
 
 El paso a paso de la consola está en [ALEXA.md](./ALEXA.md). El perfil de cada persona, en [PERFIL.md](./PERFIL.md).
 
@@ -31,6 +31,7 @@ Un precio de arranque, a modo de hipótesis y no de lista: una suscripción mens
 ## Datos
 
 - Cada familia es una sesión. No compartas el archivo `quetai.db` entre clientes si más adelante separas servidores.
+- En Render la base solo sobrevive si el servicio es de pago (Starter o más), hay un disco en `/app/data` y `DATA_DIR=/app/data`. En Free cada deploy, y también el apagado a los 15 minutos, borra los nombres y los apodos. El paso a paso está en [ALEXA.md](./ALEXA.md).
 - El cuidador ve la conversación y el perfil. Diló en el contrato y en la privacidad. No es un modo de vigilancia oculta.
 - Borrado: el panel elimina a la persona, o se pide por hola@quetai.tech.
 - `ASSISTANT_NAME` cambia cómo se presenta el asistente (por defecto `Quetai`). La invocación de Alexa sigue siendo `mi quetai` hasta que cada cliente publique su propia skill.

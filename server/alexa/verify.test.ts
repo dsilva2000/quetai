@@ -82,10 +82,11 @@ test("acepta un certificado vigente de echo-api y rechaza otro nombre", () => {
 });
 
 test("rechaza SAN equivocado, certificado vencido y cuerpo alterado", async () => {
-  const now = new Date();
   const bueno = certConSan(mkdtempSync(path.join(tmpdir(), "quetai-ok-")), 30, "echo-api.amazon.com");
   const malo = certConSan(mkdtempSync(path.join(tmpdir(), "quetai-bad-")), 30, "evil.example");
   const viejo = certConSan(mkdtempSync(path.join(tmpdir(), "quetai-old-")), 1, "echo-api.amazon.com");
+  // OpenSSL marca notBefore en el segundo en que firma. Si `now` se toma antes, el certificado todavía no es válido.
+  const now = new Date(Date.now() + 2000);
   const dentroDeUnMes = new Date(now.getTime() + 40 * 24 * 60 * 60 * 1000);
 
   const raw = Buffer.from(`{"request":{"timestamp":"${now.toISOString()}"}}`);

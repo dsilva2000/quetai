@@ -112,23 +112,72 @@ export function limpiarMedicamento(texto: string): string {
     .trim();
 }
 
-const NO_ES_NOMBRE = new Set([
-  "hola", "buenas", "buenos", "dias", "días", "tardes", "noches", "ayuda",
-  "si", "sí", "no", "quetai", "alexa", "gracias", "ok", "okay", "bueno",
-  "nada", "este", "eso", "aqui", "aquí",
+/** Partículas que pueden ir dentro de un nombre, pero no son el nombre. */
+const RELLENO = new Set([
+  "de", "del", "la", "las", "los", "el", "y", "e", "da", "do", "san", "santa", "di",
+  "al", "lo", "le", "se", "me", "te", "nos", "en", "un", "una",
 ]);
+
+/**
+ * Saludos, preguntas y palabras de función. Si aparece una, la frase no es un nombre.
+ * Las claves van sin acento.
+ */
+const NO_ES_NOMBRE = new Set([
+  "hola", "holas", "buenas", "buenos", "buena", "bueno", "dias", "dia", "tardes", "tarde",
+  "noches", "noche", "ayuda", "si", "no", "quetai", "alexa", "gracias", "ok", "okay",
+  "nada", "este", "eso", "esto", "aqui", "alla", "ahi", "como", "que", "cual", "quien",
+  "quienes", "cuando", "donde", "por", "para", "con", "estas", "esta", "estoy", "estamos",
+  "estan", "bien", "mal", "muy", "mas", "hoy", "ayer", "manana", "fui", "fue", "voy", "vas",
+  "va", "vamos", "quiero", "quieres", "puedes", "puede", "dime", "llamo", "llamas", "soy",
+  "eres", "somos", "cuentame", "cuento", "sabes", "oye", "escucha", "mercado", "compre",
+  "compro", "repite", "chau", "chao", "adios", "hasta", "luego", "pronto", "tal", "pasa",
+  "paso", "favor", "algo", "todo", "todos", "gusta", "vine", "vino", "fueron", "sali",
+  "salio", "siento", "siente", "ando", "anda", "tengo", "tiene", "tienes", "feliz", "triste",
+  "cansado", "cansada", "solo", "sola", "mi", "mis", "tu", "tus", "su", "sus",
+]);
+
+const CHARLA_CORTA: Record<string, string> = {
+  como: "cómo estás",
+  que: "qué tal",
+  hola: "hola",
+  buenas: "buenas",
+  buenos: "buenos días",
+  bien: "estoy bien",
+  estas: "cómo estás",
+  "como estas": "cómo estás",
+  "que tal": "qué tal",
+  "como estas hoy": "cómo estás",
+};
+
+export function clavePalabra(texto: string): string {
+  return texto
+    .toLocaleLowerCase("es")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[¿?¡!.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Un fragmento como "Cómo" vuelve a la frase que la persona quiso decir. */
+export function textoDeCharla(texto: string): string {
+  const limpio = texto.replace(/\s+/g, " ").trim();
+  return CHARLA_CORTA[clavePalabra(limpio)] || limpio;
+}
 
 export function extraerNombre(texto: string): string | null {
   let t = texto.trim();
   t = t.replace(/^(hola|buenos días|buenos dias|buenas tardes|buenas noches)[, ]+/i, "");
-  t = t.replace(/^(me llamo|mi nombre es|yo me llamo|puedes llamarme|llámame|llamame|yo soy|soy)\s+/i, "");
+  t = t.replace(/^(?:me llamo|mi nombre es|yo me llamo|puedes llamarme|llámame|llamame|di me|dime|yo soy|soy)\s+/i, "");
   t = t.replace(/[.,!¡¿?]/g, "").trim();
   if (!t || t.length > 40) return null;
-  const words = t.split(/\s+/);
-  if (words.length === 0 || words.length > 4) return null;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 3) return null;
   if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’\- ]+$/.test(t)) return null;
-  if (words.every((w) => NO_ES_NOMBRE.has(w.toLocaleLowerCase("es")))) return null;
-  if (words.some((w) => w.toLocaleLowerCase("es") === "quetai" || w.toLocaleLowerCase("es") === "alexa")) return null;
+  const claves = words.map((w) => clavePalabra(w));
+  if (claves.some((w) => NO_ES_NOMBRE.has(w))) return null;
+  const propios = words.filter((_, i) => !RELLENO.has(claves[i]) && claves[i].length >= 2);
+  if (propios.length === 0) return null;
   return words
     .map((w) => w.charAt(0).toLocaleUpperCase("es") + w.slice(1).toLocaleLowerCase("es"))
     .join(" ");

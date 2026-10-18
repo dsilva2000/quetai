@@ -8,7 +8,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "test": "tsx --test server/health.test.ts server/brand.test.ts server/prompt.test.ts server/memoria.test.ts server/noticias.test.ts server/alexa/hora.test.ts server/alexa/ssml.test.ts server/alexa/verify.test.ts server/alexa/reminder.test.ts server/alexa/handler.test.ts server/alexa/http.test.ts server/alexa/memory.test.ts server/alexa/model.test.ts",
+    "test": "tsx --test server/health.test.ts server/datos.test.ts server/brand.test.ts server/prompt.test.ts server/memoria.test.ts server/noticias.test.ts server/alexa/hora.test.ts server/alexa/ssml.test.ts server/alexa/verify.test.ts server/alexa/reminder.test.ts server/alexa/handler.test.ts server/alexa/http.test.ts server/alexa/memory.test.ts server/alexa/model.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

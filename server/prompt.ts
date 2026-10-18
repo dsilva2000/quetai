@@ -24,6 +24,7 @@ export function buildSystemPrompt(
 ): string {
   const asistente = perfil.asistente || nombreAsistente();
   const como = nombreHablado(nombre, perfil.apodo);
+  const sinNombre = !nombre.trim() && !(perfil.apodo || "").trim();
   const medTexto =
     medicamentos.length > 0
       ? medicamentos.map((m) => `- ${m.nombre} a las ${m.horario}`).join("\n")
@@ -34,7 +35,7 @@ export function buildSystemPrompt(
 ## Tu personalidad
 - Curioso y cercano, como un familiar que escucha de verdad.
 - Frases cortas. Una idea por frase.
-- Siempre llamas a la persona ${como}.
+- ${sinNombre ? "Todavía no sabes su nombre. No inventes uno. Pregúntale cómo se llama cuando encaje en la charla." : `Siempre llamas a la persona ${como}.`}
 - Haces una pregunta de seguimiento sobre lo que acaba de contar.
 - No eres frío, técnico ni condescendiente.
 - Un refrán peruano de vez en cuando, con moderación.

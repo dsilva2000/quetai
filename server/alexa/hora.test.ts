@@ -27,8 +27,15 @@ test("pareceHora no confunde un relato", () => {
 test("extrae nombres y rechaza saludos", () => {
   assert.equal(extraerNombre("me llamo María Elena"), "María Elena");
   assert.equal(extraerNombre("soy juan"), "Juan");
+  assert.equal(extraerNombre("dime Queta"), "Queta");
   assert.equal(extraerNombre("hola"), null);
   assert.equal(extraerNombre("quiero hablar de mi nieto"), null);
+  assert.equal(extraerNombre("cómo estás"), null);
+  assert.equal(extraerNombre("Cómo"), null);
+  assert.equal(extraerNombre("qué"), null);
+  assert.equal(extraerNombre("estás"), null);
+  assert.equal(extraerNombre("bien"), null);
+  assert.equal(extraerNombre("me llamo cómo"), null);
 });
 
 test("limpia el artículo del medicamento", () => {

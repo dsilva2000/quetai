@@ -1,12 +1,22 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { directorioPersistente, leerMontajes, resolverDirectorioDatos } from "./datos";
 
-// Directorio de datos — en Railway se puede montar un volumen, o usar /tmp como fallback
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
+// En Render el disco persistente va en DATA_DIR (/app/data). Sin esa variable
+// el archivo cae en el árbol del repo, que se borra en cada deploy.
+const DATA_DIR = resolverDirectorioDatos(process.env, process.cwd());
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH = path.join(DATA_DIR, "quetai.db");
+const montado = directorioPersistente(DATA_DIR, leerMontajes());
+console.log(JSON.stringify({
+  evento: "db.ruta",
+  dir: DATA_DIR,
+  archivo: "quetai.db",
+  montado,
+  aviso: montado ? undefined : "directorio efimero: un deploy o el spin-down del plan free borra los usuarios",
+}));
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
@@ -474,6 +484,10 @@ export const storage = {
       throw err;
     }
     return { sessionId, nombre };
+  },
+
+  setNombreUsuario(sessionId: string, nombre: string): void {
+    db.prepare("UPDATE usuarios SET nombre = ? WHERE session_id = ?").run(nombre, sessionId);
   },
 
   touchAlexaUsuario(alexaUserId: string, locale?: string): void {

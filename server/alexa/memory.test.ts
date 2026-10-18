@@ -39,6 +39,9 @@ test("vincula un usuario de Alexa y recuerda medicamentos en su sesión", async 
   assert.equal(perfil.apodo, "Queta");
   assert.equal(perfil.temas, "cocina, chisme");
 
+  storage.setNombreUsuario(creado.sessionId, "Enriqueta");
+  assert.equal(storage.getAlexaUsuario("amzn1.ask.account.ABC")?.nombre, "Enriqueta");
+
   storage.saveMemoria(creado.sessionId, "Le gusta la cocina.", 4);
   assert.equal(storage.getMemoria(creado.sessionId)?.hastaOrden, 4);
 
