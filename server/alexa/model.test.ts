@@ -87,6 +87,29 @@ test("SearchQuery no comparte muestra con otra ranura", () => {
   }
 });
 
+test("la charla libre lleva portadores y la ranura no va sola", () => {
+  const portadores = [
+    "hoy {frase}",
+    "fui {frase}",
+    "estoy {frase}",
+    "me siento {frase}",
+    "sabes que {frase}",
+    "te cuento que {frase}",
+  ];
+  for (const locale of LOCALES) {
+    const lang = modelo(locale).interactionModel.languageModel;
+    const intent = lang.intents.find((item: { name: string }) => item.name === "ConversarIntent");
+    assert.equal(intent.slots[0].type, "AMAZON.SearchQuery", locale);
+    assert.equal(intent.samples.includes("{frase}"), false, locale);
+    assert.equal(intent.samples.includes("mi {frase}"), false, locale);
+    for (const muestra of portadores) {
+      assert.ok(intent.samples.includes(muestra), `${locale} ${muestra}`);
+    }
+    const tipos = lang.types.map((item: { name: string }) => item.name);
+    assert.equal(tipos.includes("FRASE_LIBRE"), false, locale);
+  }
+});
+
 test("el apodo tiene muestras de di me y los valores Queta y Enriqueta", () => {
   const muestras = [
     "di me {apodo}",

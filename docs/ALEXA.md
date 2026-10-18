@@ -17,7 +17,25 @@ No pide cuenta ni contraseña. Una persona mayor no tiene que enlazar nada.
 
 ## Dónde se guarda todo
 
-Quetai **no usa Supabase**. El servidor (Express) guarda los datos en un archivo SQLite: `data/quetai.db`, en el disco de Render (`/app/data`). Ahí ya viven los usuarios del teléfono, los mensajes y los medicamentos.
+Quetai **no usa Supabase**. El servidor (Express) guarda los datos en un archivo SQLite: `quetai.db`. La ruta la marca `DATA_DIR`. En Render tiene que ser `/app/data`, que es donde se monta el disco. Si `DATA_DIR` no está, el archivo cae en `/opt/render/project/src/data` y **se borra en cada deploy**.
+
+El plan **Free no puede tener disco**. Render lo dice en su documentación: un web service gratuito tiene disco efímero, se apaga a los 15 minutos sin visitas y pierde los archivos locales al redesplegar, al reiniciar o al dormirse. El bloque `disk` de `render.yaml` no se aplica mientras el servicio siga en Free. v3.2 no borró filas: no hay `DROP` ni `DELETE` de `alexa_usuarios`. Lo que pasó con Queta es que el deploy nuevo arrancó con una base vacía.
+
+### Dejar el disco puesto (lo tiene que hacer Daniel)
+
+1. Entra a [dashboard.render.com](https://dashboard.render.com), abre el servicio `quetai`.
+2. **Settings** → **Instance Type** (plan de cómputo). Cambia **Free** por **Starter** (o cualquier plan de pago). Guarda. Esto empieza a cobrar. En Free el botón de disco no sirve.
+3. En el menú del servicio, **Disks**. Si no hay un disco:
+   - **Add disk**
+   - Name: `quetai-data`
+   - Mount path: `/app/data` (exacto, con esa barra)
+   - Size: `1` GB
+   - Confirma. Render vuelve a desplegar.
+4. **Environment**: `DATA_DIR` = `/app/data`. Este repo ya lo trae en `render.yaml`. Si el blueprint no sincronizó, escríbela a mano y guarda.
+5. Espera el deploy. En **Logs** tiene que salir una línea JSON `{"evento":"db.ruta","dir":"/app/data","montado":true}`. Si `montado` es `false`, el disco no está enganchado y el próximo deploy vuelve a olvidar a la gente.
+6. La base anterior ya no está. Queta tiene que volver a decir su nombre y su apodo. A partir del disco, un deploy no los borra.
+
+Ahí viven los usuarios del teléfono, los mensajes, los medicamentos, el apodo y el userId de Alexa.
 
 Alexa reutiliza esas mismas tablas:
 
@@ -37,7 +55,7 @@ La sesión de un Echo es `alexa:` más el userId que envía Amazon. Así no se m
 1. Revisa el pull request y únelo a `master`.
 2. Render despliega solo la rama `master` (`render.yaml`, servicio `quetai`). El build **no compila** el servidor: solo hace `npm install` y recompila `better-sqlite3`. Lo que se ejecuta es `dist/index.cjs`, el bundle que está en git. Si ese archivo no entró en el merge, `/api/alexa` y `/privacidad` siguen devolviendo la página web.
 3. Espera a que el deploy quede en verde.
-4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3.2"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en una versión anterior, sigue corriendo el bundle viejo. El campo `model` dice qué modelo está configurado. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
+4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3.3"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en una versión anterior, sigue corriendo el bundle viejo. El campo `model` dice qué modelo está configurado. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
    - `https://quetai.onrender.com/api/health` → debe decir `"status": "ok"`.
    - `https://quetai.onrender.com/api/alexa` → debe decir `"servicio": "quetai-alexa"` y `"verificacion": "activa"`.
    - `https://quetai.onrender.com/privacidad`
@@ -61,6 +79,7 @@ En Render → servicio `quetai` → Environment. No las pongas en git.
 | `ASSISTANT_NAME` | Cómo se presenta. Por defecto `Quetai`. La invocación de Alexa sigue siendo `mi quetai` | No |
 | `NEWS_ENABLED` | `true` para titulares de Google News. `false` los apaga | No |
 | `TZ` | `America/Lima` | Ya está en `render.yaml` |
+| `DATA_DIR` | `/app/data` | Sí, en Render. Sin esto la base no cae en el disco |
 
 `ALEXA_SKIP_VERIFICATION=true` apaga la comprobación de firma. Sirve solo si estás depurando con `curl` en tu máquina. **No lo actives en Render.** El simulador de Alexa sí firma las peticiones, así que no hace falta apagar nada para probar.
 
@@ -101,14 +120,14 @@ Para cada idioma (`es-US`, y luego `es-ES` y `es-MX`):
 
 El modelo incluye:
 
-- `ConversarIntent` y `PreguntarIntent`: conversación libre (ranura abierta y `AMAZON.SearchQuery`).
+- `ConversarIntent` y `PreguntarIntent`: conversación libre. `frase` es `AMAZON.SearchQuery` con portadores (`hoy`, `fui`, `estoy`, `me siento`, `sabes que`, `te cuento que`). No hay muestra que sea solo la ranura. No uses `mi {frase}`: choca con la familia, el nombre y el apodo.
 - `CharlarIntent`: «conversa conmigo».
 - `DecirNombreIntent`: «me llamo María».
 - `RecordarMedicamentoIntent`: medicamento + hora.
 - `ListarMedicamentosIntent` y `OlvidarConversacionIntent`.
 - `ChismeIntent`, `PoliticaIntent` y `NoticiasIntent`: titulares, sin inventar.
 - `CambiarApodoIntent`, `GustosIntent`, `EvitarTemaIntent` y `FamiliaIntent`. Toda muestra con `AMAZON.SearchQuery` lleva palabras además de la ranura.
-- Ayuda, parar, cancelar, repetir, sí, no y `AMAZON.FallbackIntent`.
+- Ayuda, parar, cancelar, repetir, sí, no y `AMAZON.FallbackIntent`. Si Alexa no entendió la frase, igual entra a la charla cuando manda el texto; si no lo manda, Quetai pide que se la cuenten otra vez.
 
 ### Endpoint
 
@@ -250,7 +269,7 @@ El endpoint HTTPS déjalo como en la consola. Un `ask deploy` completo puede int
 | Alexa dice que no existe la skill | Misma cuenta en el Echo y en la consola. Skill en Development. Idioma español. |
 | 400 solicitud no válida | Firma o reloj. URL exacta `/api/alexa`. Deploy nuevo. No desactives la verificación. |
 | 400 skill id no coincide | `ALEXA_SKILL_ID` en Render. |
-| Responde pero no recuerda al día siguiente | El disco de Render (`quetai-data` en `/app/data`) tiene que seguir montado. Sin disco, SQLite se borra en cada deploy. |
+| Responde pero no recuerda al día siguiente | El plan sigue en Free, o `DATA_DIR` no es `/app/data`, o en los logs `db.ruta` dice `"montado":false`. Hay que pasar a Starter y montar el disco. Ver «Dejar el disco puesto». |
 | No suena el recordatorio en el Echo | Permiso aceptado en la app de Alexa. La hora es de Lima (`TZ=America/Lima`). El plan gratuito de Render puede tardar en despertar; el aviso lo pronuncia Alexa, no el servidor, una vez creado. |
 | La respuesta tarda o sale el tropiezo | Mira el log `llm.error` en Render (clase, status, código, milisegundos; sin la clave). `/api/health` debe mostrar `model` `openai/gpt-oss-120b` si no cambiaste `LLM_MODEL`. |
 | No abre con «quetai» | La invocación es `mi quetai`. Di «Alexa, abre mi quetai». |

@@ -34,8 +34,16 @@ function memoria(seed?: { nombre?: string; apodo?: string; titulares?: { tema: "
       return state.user;
     },
     registerUser(_id, nombre) {
-      state.user = { sessionId: "alexa:user-1", nombre };
+      state.user = { sessionId: "alexa:user-1", nombre, nombrePendiente: false };
       return state.user;
+    },
+    asegurarUsuario() {
+      if (!state.user) state.user = { sessionId: "alexa:user-1", nombre: "", nombrePendiente: true };
+      return state.user;
+    },
+    setNombre(_session, nombre) {
+      if (!state.user) state.user = { sessionId: "alexa:user-1", nombre, nombrePendiente: false };
+      else state.user = { ...state.user, nombre, nombrePendiente: false };
     },
     touch() {},
     listMedicamentos() {
@@ -92,6 +100,7 @@ function pedido(parcial: {
   userId?: string | null;
   skillId?: string;
   consent?: string | null;
+  transcript?: string;
 }): AlexaRequestBody {
   const slots: AlexaRequestBody["request"] = {};
   const intentSlots: Record<string, { value: string }> = {};
@@ -118,6 +127,7 @@ function pedido(parcial: {
       type: parcial.type || "IntentRequest",
       timestamp: AHORA.toISOString(),
       locale: "es-US",
+      transcript: parcial.transcript,
       intent: parcial.intent
         ? { name: parcial.intent, slots: intentSlots }
         : undefined,
@@ -128,6 +138,11 @@ function pedido(parcial: {
 function ssml(result: { body: unknown }): string {
   const body = result.body as AlexaResponseBody;
   return body.response.outputSpeech?.ssml || "";
+}
+
+function repromptDe(result: { body: unknown }): string {
+  const body = result.body as AlexaResponseBody;
+  return body.response.reprompt?.outputSpeech?.ssml || "";
 }
 
 test("el primer saludo pide el nombre y no cierra la sesión", async () => {
@@ -161,14 +176,34 @@ test("guarda el nombre y saluda de mañana en Lima", async () => {
   assert.equal(mem.findUser("user-1")?.nombre, "María");
 });
 
-test("un saludo suelto no se guarda como nombre", async () => {
+test("un saludo suelto no se guarda como nombre y se conversa", async () => {
   const mem = memoria();
   const res = await handleAlexaRequest(
     pedido({ intent: "ConversarIntent", slots: { frase: "hola" }, attributes: { esperandoNombre: "si" } }),
     { memory: mem, skillId: SKILL, now: () => AHORA },
   );
-  assert.match(ssml(res), /Todavía no sé tu nombre/);
-  assert.equal(mem.findUser("x"), null);
+  assert.equal(mem.findUser("x")?.nombre, "");
+  assert.equal(mem.findUser("x")?.nombrePendiente, true);
+  assert.deepEqual(mem.frases, ["hola"]);
+  assert.match(repromptDe(res), /cómo te llamas/i);
+  assert.equal((res.body as AlexaResponseBody).sessionAttributes?.esperandoNombre, "si");
+  assert.equal(/buenos días, hola/i.test(ssml(res)), false);
+});
+
+test("cómo estás no se anota como nombre", async () => {
+  const mem = memoria();
+  const res = await handleAlexaRequest(
+    pedido({
+      intent: "DecirNombreIntent",
+      slots: { nombre: "Cómo" },
+      attributes: { esperandoNombre: "si" },
+    }),
+    { memory: mem, skillId: SKILL, now: () => AHORA },
+  );
+  assert.equal(mem.findUser("x")?.nombre, "");
+  assert.deepEqual(mem.frases, ["cómo estás"]);
+  assert.equal(/buenas noches, cómo/i.test(ssml(res)), false);
+  assert.match(repromptDe(res), /cómo te llamas/i);
 });
 
 test("quien ya está registrado recibe el saludo con su nombre", async () => {
@@ -207,7 +242,9 @@ test("fallback, ayuda, repetir y parar", async () => {
   const mem = memoria({ nombre: "María" });
   const deps = { memory: mem, skillId: SKILL, now: () => AHORA, timeZone: "America/Lima" };
   const fallback = await handleAlexaRequest(pedido({ intent: "AMAZON.FallbackIntent" }), deps);
-  assert.match(ssml(fallback), /No te escuché bien/);
+  assert.match(ssml(fallback), /María/);
+  assert.match(ssml(fallback), /Cuéntame otra vez/);
+  assert.equal(mem.frases.length, 0);
 
   const ayuda = await handleAlexaRequest(pedido({ intent: "AMAZON.HelpIntent" }), deps);
   assert.match(ssml(ayuda), /médico/);
@@ -398,6 +435,34 @@ test("di me queta guarda el apodo con mayúscula", async () => {
   });
   assert.deepEqual(mem.apodos, ["Queta"]);
   assert.match(ssml(res), /te digo Queta/);
+});
+
+test("me llamo y dime corrigen el nombre en cualquier momento", async () => {
+  const mem = memoria({ nombre: "Cómo" });
+  const porNombre = await handleAlexaRequest(
+    pedido({ intent: "ConversarIntent", slots: { frase: "me llamo Enriqueta" } }),
+    { memory: mem, skillId: SKILL, now: () => AHORA },
+  );
+  assert.equal(mem.frases.length, 0);
+  assert.equal(mem.findUser("x")?.nombre, "Enriqueta");
+  assert.match(ssml(porNombre), /Enriqueta/);
+  const porApodo = await handleAlexaRequest(
+    pedido({ intent: "AMAZON.FallbackIntent", transcript: "dime Queta" }),
+    { memory: mem, skillId: SKILL, now: () => AHORA },
+  );
+  assert.deepEqual(mem.apodos, ["Queta"]);
+  assert.match(ssml(porApodo), /Queta/);
+  assert.equal(mem.frases.length, 0);
+});
+
+test("una frase libre sin ranura entra a la charla si hay transcripción", async () => {
+  const mem = memoria({ nombre: "María" });
+  const res = await handleAlexaRequest(
+    pedido({ intent: "AMAZON.FallbackIntent", transcript: "hoy fui al mercado y compré mangos" }),
+    { memory: mem, skillId: SKILL, now: () => AHORA },
+  );
+  assert.deepEqual(mem.frases, ["hoy fui al mercado y compré mangos"]);
+  assert.match(ssml(res), /mangos/);
 });
 
 test("me llamo no entra a la conversación y usa el apodo", async () => {

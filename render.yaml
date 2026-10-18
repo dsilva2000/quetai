@@ -46,6 +46,11 @@ services:
         value: "5500"
       - key: NEWS_ENABLED
         value: "true"
+      # The app writes SQLite here. Render only mounts the disk below on a
+      # paid instance (Starter or above). Free ignores disks and wipes the
+      # filesystem on every deploy and after 15 minutes idle. See docs/ALEXA.md.
+      - key: DATA_DIR
+        value: /app/data
     disk:
       name: quetai-data
       mountPath: /app/data
