@@ -6,11 +6,11 @@
         "es-US": {
           "name": "Quetai",
           "summary": "Compañía por voz para adultos mayores. Conversar y anotar un recordatorio.",
-          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre Quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
+          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre mi quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
           "examplePhrases": [
-            "Alexa, abre quetai",
-            "Alexa, pídele a quetai que converse conmigo",
-            "Alexa, pregúntale a quetai cuáles son mis medicamentos"
+            "Alexa, abre mi quetai",
+            "Alexa, pídele a mi quetai que me cuente el chisme",
+            "Alexa, pregúntale a mi quetai qué pasó en política"
           ],
           "keywords": [
             "compañía",
@@ -24,11 +24,11 @@
         "es-ES": {
           "name": "Quetai",
           "summary": "Compañía por voz para adultos mayores. Conversar y anotar un recordatorio.",
-          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre Quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
+          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre mi quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
           "examplePhrases": [
-            "Alexa, abre quetai",
-            "Alexa, pídele a quetai que converse conmigo",
-            "Alexa, pregúntale a quetai cuáles son mis medicamentos"
+            "Alexa, abre mi quetai",
+            "Alexa, pídele a mi quetai que me cuente el chisme",
+            "Alexa, pregúntale a mi quetai qué pasó en política"
           ],
           "keywords": [
             "compañía",
@@ -42,11 +42,11 @@
         "es-MX": {
           "name": "Quetai",
           "summary": "Compañía por voz para adultos mayores. Conversar y anotar un recordatorio.",
-          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre Quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
+          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre mi quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
           "examplePhrases": [
-            "Alexa, abre quetai",
-            "Alexa, pídele a quetai que converse conmigo",
-            "Alexa, pregúntale a quetai cuáles son mis medicamentos"
+            "Alexa, abre mi quetai",
+            "Alexa, pídele a mi quetai que me cuente el chisme",
+            "Alexa, pregúntale a mi quetai qué pasó en política"
           ],
           "keywords": [
             "compañía",

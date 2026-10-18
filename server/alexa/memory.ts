@@ -1,12 +1,14 @@
 import { conversar } from "../conversation";
+import { obtenerTitulares, type TemaNoticia } from "../noticias";
 import { storage } from "../storage";
-import type { AlexaMemory } from "./handler";
+import type { AlexaMemory, TemaVoz } from "./handler";
 
 export const alexaMemory: AlexaMemory = {
   findUser(alexaUserId) {
     const row = storage.getAlexaUsuario(alexaUserId);
     if (!row) return null;
-    return { sessionId: row.sessionId, nombre: row.nombre };
+    const perfil = storage.getPerfil(row.sessionId);
+    return { sessionId: row.sessionId, nombre: row.nombre, apodo: perfil.apodo || undefined };
   },
 
   registerUser(alexaUserId, nombre, locale) {
@@ -39,5 +41,26 @@ export const alexaMemory: AlexaMemory = {
 
   conversar(sessionId, mensaje) {
     return conversar(sessionId, mensaje, "alexa");
+  },
+
+  setApodo(sessionId, apodo) {
+    storage.savePerfil(sessionId, { apodo }, "replace");
+  },
+
+  agregarTema(sessionId, tema) {
+    storage.savePerfil(sessionId, { temas: tema }, "append");
+  },
+
+  agregarEvitar(sessionId, tema) {
+    storage.savePerfil(sessionId, { evitar: tema }, "append");
+  },
+
+  agregarFamilia(sessionId, texto) {
+    storage.savePerfil(sessionId, { familia: texto }, "append");
+  },
+
+  async titulares(tema: TemaVoz) {
+    const temas: TemaNoticia[] = tema === "todos" ? ["actualidad", "farandula", "politica"] : [tema];
+    return obtenerTitulares(temas, { timeoutMs: 3500 });
   },
 };

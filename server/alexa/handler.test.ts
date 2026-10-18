@@ -6,17 +6,28 @@ import type { AlexaRequestBody, AlexaResponseBody } from "./types.ts";
 const SKILL = "amzn1.ask.skill.test";
 const AHORA = new Date("2026-10-18T15:00:00.000Z"); // 10:00 en Lima
 
-function memoria(seed?: { nombre?: string }): AlexaMemory & {
+function memoria(seed?: { nombre?: string; apodo?: string; titulares?: { tema: "farandula" | "politica" | "actualidad"; titulo: string }[] }): AlexaMemory & {
   saved: { nombre: string; horario: string }[];
   frases: string[];
   flag: { cleared: boolean };
+  apodos: string[];
+  temas: string[];
+  evitar: string[];
+  familia: string[];
+  progresos: { n: number };
 } {
   const state = {
-    user: seed?.nombre ? { sessionId: "alexa:user-1", nombre: seed.nombre } : null as { sessionId: string; nombre: string } | null,
+    user: seed?.nombre ? { sessionId: "alexa:user-1", nombre: seed.nombre, apodo: seed.apodo } : null as { sessionId: string; nombre: string; apodo?: string } | null,
     meds: [] as { nombre: string; horario: string }[],
     frases: [] as string[],
     flag: { cleared: false },
     saved: [] as { nombre: string; horario: string }[],
+    apodos: [] as string[],
+    temas: [] as string[],
+    evitar: [] as string[],
+    familia: [] as string[],
+    titulares: seed?.titulares || [],
+    progresos: { n: 0 },
   };
   const api: AlexaMemory = {
     findUser() {
@@ -44,8 +55,33 @@ function memoria(seed?: { nombre?: string }): AlexaMemory & {
       if (mensaje === "falla") throw new Error("llm");
       return `Qué bonito, María. ${mensaje}. ¿Y cómo siguió?`;
     },
+    setApodo(_session, apodo) {
+      state.apodos.push(apodo);
+      if (state.user) state.user = { ...state.user, apodo };
+    },
+    agregarTema(_session, tema) {
+      state.temas.push(tema);
+    },
+    agregarEvitar(_session, tema) {
+      state.evitar.push(tema);
+    },
+    agregarFamilia(_session, texto) {
+      state.familia.push(texto);
+    },
+    async titulares() {
+      return state.titulares;
+    },
   };
-  return Object.assign(api, { frases: state.frases, saved: state.saved, flag: state.flag });
+  return Object.assign(api, {
+    frases: state.frases,
+    saved: state.saved,
+    flag: state.flag,
+    apodos: state.apodos,
+    temas: state.temas,
+    evitar: state.evitar,
+    familia: state.familia,
+    progresos: state.progresos,
+  });
 }
 
 function pedido(parcial: {
@@ -247,7 +283,7 @@ test("lista los medicamentos y puede olvidar la charla", async () => {
     now: () => AHORA,
   });
   assert.equal(mem.flag.cleared, true);
-  assert.match(ssml(olvido), /Olvidé nuestra charla/);
+  assert.match(ssml(olvido), /Olvidé la charla reciente/);
 });
 
 test("un skill id distinto se rechaza", async () => {
@@ -257,6 +293,82 @@ test("un skill id distinto se rechaza", async () => {
     now: () => AHORA,
   });
   assert.equal(res.status, 400);
+});
+
+test("el chisme usa titulares y no llama al modelo", async () => {
+  const mem = memoria({
+    nombre: "María",
+    titulares: [{ tema: "farandula", titulo: "Cantante peruana anuncia gira" }],
+  });
+  let progresos = 0;
+  const res = await handleAlexaRequest(pedido({ intent: "ChismeIntent" }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+    progreso: async () => { progresos += 1; },
+  });
+  assert.equal(mem.frases.length, 0);
+  assert.equal(progresos, 0);
+  assert.match(ssml(res), /Cantante peruana anuncia gira/);
+  assert.match(ssml(res), /chisme/);
+});
+
+test("la política no toma partido y no inventa si no hay titulares", async () => {
+  const mem = memoria({ nombre: "María", titulares: [] });
+  const vacio = await handleAlexaRequest(pedido({ intent: "PoliticaIntent" }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.match(ssml(vacio), /no voy a inventar/i);
+  const conDato = memoria({
+    nombre: "María",
+    titulares: [{ tema: "politica", titulo: "El Congreso debatió el presupuesto" }],
+  });
+  const res = await handleAlexaRequest(pedido({ intent: "PoliticaIntent" }), {
+    memory: conDato,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.match(ssml(res), /sin tomar partido/);
+  assert.match(ssml(res), /presupuesto/);
+});
+
+test("dime un apodo lo guarda", async () => {
+  const mem = memoria({ nombre: "María" });
+  const res = await handleAlexaRequest(pedido({ intent: "CambiarApodoIntent", slots: { apodo: "Queta" } }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.deepEqual(mem.apodos, ["Queta"]);
+  assert.match(ssml(res), /te digo Queta/);
+});
+
+test("un gusto se anota sin pasar por el modelo", async () => {
+  const mem = memoria({ nombre: "María" });
+  const res = await handleAlexaRequest(pedido({ intent: "GustosIntent", slots: { tema: "el chisme" } }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.deepEqual(mem.temas, ["chisme"]);
+  assert.equal(mem.frases.length, 0);
+  assert.match(ssml(res), /chisme/);
+});
+
+test("la charla libre avisa antes y llama al modelo", async () => {
+  const mem = memoria({ nombre: "María" });
+  let progresos = 0;
+  const res = await handleAlexaRequest(pedido({ intent: "ConversarIntent", slots: { frase: "hoy caminé" } }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+    progreso: async () => { progresos += 1; },
+  });
+  assert.equal(progresos, 1);
+  assert.deepEqual(mem.frases, ["hoy caminé"]);
+  assert.match(ssml(res), /caminé/);
 });
 
 test("SessionEnded responde vacío", async () => {

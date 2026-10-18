@@ -1,3 +1,5 @@
+import { nombreAsistente, nombreHablado } from "../brand";
+import { respuestaDesdeTitulares, type TemaNoticia, type Titular } from "../noticias";
 import { extraerNombre, horaParaVoz, limpiarMedicamento, pareceHora, parseHoraLibre } from "./hora";
 import { crearRecordatorioDiario, partesEnZona } from "./reminder";
 import { limpiarParaVoz, localeVoz, toSsml } from "./ssml";
@@ -5,15 +7,28 @@ import type { AlexaRequestBody, AlexaResponseBody } from "./types";
 
 const PERMISO_RECORDATORIOS = "alexa::alerts:reminders:skill:readwrite";
 
+export type TemaVoz = TemaNoticia | "todos";
+
+export interface UsuarioAlexa {
+  sessionId: string;
+  nombre: string;
+  apodo?: string;
+}
+
 export interface AlexaMemory {
-  findUser(alexaUserId: string): { sessionId: string; nombre: string } | null;
-  registerUser(alexaUserId: string, nombre: string, locale: string): { sessionId: string; nombre: string };
+  findUser(alexaUserId: string): UsuarioAlexa | null;
+  registerUser(alexaUserId: string, nombre: string, locale: string): UsuarioAlexa;
   touch(alexaUserId: string, locale: string): void;
   listMedicamentos(sessionId: string): { nombre: string; horario: string }[];
   saveMedicamento(sessionId: string, nombre: string, horario: string): { created: boolean };
   anotarIntercambio(sessionId: string, usuario: string, asistente: string): void;
   clearConversacion(sessionId: string): void;
   conversar(sessionId: string, mensaje: string): Promise<string>;
+  setApodo(sessionId: string, apodo: string): void;
+  agregarTema(sessionId: string, tema: string): void;
+  agregarEvitar(sessionId: string, tema: string): void;
+  agregarFamilia(sessionId: string, texto: string): void;
+  titulares(tema: TemaVoz): Promise<Titular[]>;
 }
 
 export interface HandlerResult {
@@ -27,6 +42,8 @@ export interface HandlerDeps {
   now?: () => Date;
   timeZone?: string;
   crearRecordatorio?: typeof crearRecordatorioDiario;
+  /** Aviso corto antes de una respuesta lenta. No alarga el límite de 8 segundos. */
+  progreso?: (body: AlexaRequestBody) => Promise<void>;
 }
 
 function attrsDe(body: AlexaRequestBody): Record<string, string> {
@@ -55,11 +72,28 @@ function textoLibre(body: AlexaRequestBody): string {
   return slot(body, "frase") || slot(body, "consulta") || slot(body, "nombre") || "";
 }
 
-function saludo(nombre: string, now: Date, timeZone: string): string {
+function comoSeDice(usuario: { nombre: string; apodo?: string }): string {
+  return nombreHablado(usuario.nombre, usuario.apodo);
+}
+
+function saludo(usuario: { nombre: string; apodo?: string }, now: Date, timeZone: string): string {
   const h = partesEnZona(now, timeZone).hour;
   const parte = h < 12 ? "Buenos días" : h < 18 ? "Buenas tardes" : "Buenas noches";
-  const primer = nombre.split(" ")[0];
-  return `${parte}, ${primer}. Soy Quetai. Qué gusto escucharte. ¿Cómo estás hoy?`;
+  const asistente = nombreAsistente();
+  return `${parte}, ${comoSeDice(usuario)}. Soy ${asistente}. Qué gusto escucharte. ¿Cómo estás hoy?`;
+}
+
+function limpiarApodo(raw: string): string {
+  const limpio = raw.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\- ]/g, " ").replace(/\s+/g, " ").trim();
+  return limpio.split(" ").slice(0, 2).join(" ").slice(0, 24);
+}
+
+function limpiarTema(raw: string): string {
+  return raw
+    .replace(/^(el|la|los|las|un|una|de|del)\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
 }
 
 function hablar(
@@ -108,7 +142,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   }
 
   if (tipo !== "LaunchRequest" && tipo !== "IntentRequest") {
-    return hablar("No te entendí. Di: abre Quetai, para empezar.", { locale, end: true });
+    return hablar(`No te entendí. Di: abre ${nombreAsistente()}, para empezar.`, { locale, end: true });
   }
 
   const alexaUserId = userIdDe(body);
@@ -123,7 +157,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
 
   if (tipo === "LaunchRequest") {
     if (!usuario) {
-      return hablar("Hola. Soy Quetai, tu compañero para conversar. ¿Cómo te llamas?", {
+      return hablar(`Hola. Soy ${nombreAsistente()}, tu compañero para conversar. ¿Cómo te llamas?`, {
         locale,
         reprompt: "Dime tu nombre. Por ejemplo: me llamo María.",
         attributes: { ...attributes, esperandoNombre: "si" },
@@ -131,7 +165,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
     }
     const next = { ...attributes };
     delete next.esperandoNombre;
-    return hablar(saludo(usuario.nombre, now, timeZone), { locale, attributes: next });
+    return hablar(saludo(usuario, now, timeZone), { locale, attributes: next });
   }
 
   const intent = body.request?.intent?.name || "";
@@ -143,7 +177,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   }
 
   if (intent === "AMAZON.StopIntent" || intent === "AMAZON.CancelIntent" || intent === "AMAZON.NavigateHomeIntent") {
-    const primer = usuario?.nombre.split(" ")[0] || "";
+    const primer = usuario ? comoSeDice(usuario) : "";
     const despedida = primer
       ? `Hasta pronto, ${primer}. Aquí estaré cuando quieras conversar.`
       : "Hasta pronto. Aquí estaré cuando quieras conversar.";
@@ -152,7 +186,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
 
   if (intent === "AMAZON.HelpIntent") {
     return hablar(
-      "Puedes conversar conmigo de tu familia, la comida o cómo te sientes. También puedes decir: recuérdame tomar mi pastilla a las ocho de la mañana. No soy un médico. Si te sientes mal, llama a un familiar o a emergencias. ¿De qué quieres hablar?",
+      "Puedes conversar de tu familia o la comida, pedir el chisme o la política del día, o decir cómo quieres que te llame. También: recuérdame tomar mi pastilla a las ocho de la mañana. No soy un médico. Si te sientes mal, llama a un familiar o a emergencias. ¿De qué quieres hablar?",
       { locale, reprompt: "¿De qué quieres hablar?", attributes },
     );
   }
@@ -172,7 +206,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
       const next = { ...attributes };
       delete next.esperandoNombre;
       return hablar(
-        `${saludo(posible, now, timeZone)} Cuando quieras, cuéntame de tu día. Si tomas algún medicamento, dime a qué hora.`,
+        `${saludo({ nombre: posible }, now, timeZone)} Cuando quieras, cuéntame de tu día. Si tomas algún medicamento, dime a qué hora.`,
         { locale, attributes: next },
       );
     }
@@ -185,15 +219,15 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
 
   if (intent === "OlvidarConversacionIntent") {
     deps.memory.clearConversacion(usuario.sessionId);
-    const primer = usuario.nombre.split(" ")[0];
-    return hablar(`Listo, ${primer}. Olvidé nuestra charla. Tus medicamentos siguen guardados. ¿De qué hablamos ahora?`, {
+    const primer = comoSeDice(usuario);
+    return hablar(`Listo, ${primer}. Olvidé la charla reciente. Sigo acordándome de ti y tus medicamentos siguen guardados. ¿De qué hablamos ahora?`, {
       locale,
       attributes,
     });
   }
 
   if (intent === "CharlarIntent") {
-    const primer = usuario.nombre.split(" ")[0];
+    const primer = comoSeDice(usuario);
     return hablar(`${primer}, aquí estoy. Cuéntame cómo te fue hoy, o de alguien de tu familia.`, {
       locale,
       attributes,
@@ -201,7 +235,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   }
 
   if (intent === "ListarMedicamentosIntent") {
-    return hablar(textoMedicamentos(usuario.nombre, deps.memory.listMedicamentos(usuario.sessionId)), {
+    return hablar(textoMedicamentos(comoSeDice(usuario), deps.memory.listMedicamentos(usuario.sessionId)), {
       locale,
       attributes,
     });
@@ -253,9 +287,15 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   }
 
   if (intent === "AMAZON.YesIntent" || intent === "AMAZON.NoIntent") {
-    const primer = usuario.nombre.split(" ")[0];
+    const primer = comoSeDice(usuario);
     return hablar(`Cuéntame, ${primer}. ¿Cómo te fue hoy?`, { locale, attributes });
   }
+
+  const perfil = await responderPerfil(intent, body, deps, usuario, locale, attributes);
+  if (perfil) return perfil;
+
+  const noticias = await responderNoticias(intent, deps, usuario, locale, attributes);
+  if (noticias) return noticias;
 
   const frase = textoLibre(body);
   if (!frase || intent === "AMAZON.FallbackIntent") {
@@ -267,17 +307,97 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   }
 
   try {
+    if (deps.progreso) {
+      try {
+        await deps.progreso(body);
+      } catch (err: any) {
+        console.error("[alexa] progreso:", err?.message || err);
+      }
+    }
     const respuesta = await deps.memory.conversar(usuario.sessionId, frase);
     return hablar(respuesta, { locale, attributes });
   } catch (err: any) {
     console.error("[alexa] conversar:", err?.message || err);
-    const primer = usuario.nombre.split(" ")[0];
+    const primer = comoSeDice(usuario);
     return hablar(`Ay, ${primer}, tuve un pequeño tropiezo. ¿Me lo repites?`, { locale, attributes });
   }
 }
 
+async function responderPerfil(
+  intent: string,
+  body: AlexaRequestBody,
+  deps: HandlerDeps,
+  usuario: UsuarioAlexa,
+  locale: string,
+  attributes: Record<string, string>,
+): Promise<HandlerResult | null> {
+  const primer = comoSeDice(usuario);
+  if (intent === "CambiarApodoIntent") {
+    const apodo = limpiarApodo(slot(body, "apodo") || slot(body, "nombre"));
+    if (!apodo) {
+      return hablar(`${primer}, ¿cómo quieres que te diga?`, {
+        locale,
+        reprompt: "Dime cómo quieres que te llame.",
+        attributes,
+      });
+    }
+    deps.memory.setApodo(usuario.sessionId, apodo);
+    return hablar(`Listo. Desde ahora te digo ${apodo}. ¿De qué conversamos?`, { locale, attributes });
+  }
+  if (intent === "GustosIntent") {
+    const tema = limpiarTema(slot(body, "tema"));
+    if (!tema) {
+      return hablar(`${primer}, ¿de qué te gusta hablar?`, { locale, attributes });
+    }
+    deps.memory.agregarTema(usuario.sessionId, tema);
+    return hablar(`Anotado, ${primer}. Te gusta ${tema}. ¿Qué me cuentas de eso?`, { locale, attributes });
+  }
+  if (intent === "EvitarTemaIntent") {
+    const tema = limpiarTema(slot(body, "tema"));
+    if (!tema) {
+      return hablar(`${primer}, ¿qué tema prefieres que no saque?`, { locale, attributes });
+    }
+    deps.memory.agregarEvitar(usuario.sessionId, tema);
+    return hablar(`Está bien, ${primer}. No voy a sacar el tema de ${tema}. ¿Hablamos de otra cosa?`, { locale, attributes });
+  }
+  if (intent === "FamiliaIntent") {
+    const parentesco = limpiarTema(slot(body, "parentesco"));
+    const nombre = limpiarApodo(slot(body, "nombre"));
+    if (!parentesco || !nombre) {
+      return hablar("Dime el parentesco y el nombre. Por ejemplo: mi nieta se llama Rosa.", { locale, attributes });
+    }
+    deps.memory.agregarFamilia(usuario.sessionId, `${parentesco} ${nombre}`);
+    return hablar(`Qué lindo, ${primer}. Tu ${parentesco} se llama ${nombre}. ¿Cómo está?`, { locale, attributes });
+  }
+  return null;
+}
+
+async function responderNoticias(
+  intent: string,
+  deps: HandlerDeps,
+  usuario: UsuarioAlexa,
+  locale: string,
+  attributes: Record<string, string>,
+): Promise<HandlerResult | null> {
+  const mapa: Record<string, TemaVoz> = {
+    ChismeIntent: "farandula",
+    PoliticaIntent: "politica",
+    NoticiasIntent: "todos",
+  };
+  const tema = mapa[intent];
+  if (!tema) return null;
+  let items: Titular[] = [];
+  try {
+    items = await deps.memory.titulares(tema);
+  } catch (err: any) {
+    console.error("[alexa] noticias:", err?.message || err);
+  }
+  const texto = respuestaDesdeTitulares(tema, items, comoSeDice(usuario));
+  return hablar(texto, { locale, attributes });
+}
+
 function textoMedicamentos(nombre: string, meds: { nombre: string; horario: string }[]): string {
-  const primer = nombre.split(" ")[0];
+  const primer = nombreHablado(nombre);
   if (meds.length === 0) {
     return `${primer}, todavía no tengo medicamentos anotados. Puedes decir: recuérdame tomar losartán a las ocho de la mañana.`;
   }
@@ -293,7 +413,7 @@ async function guardarMedicamento(
   body: AlexaRequestBody,
   deps: HandlerDeps,
   ctx: {
-    usuario: { sessionId: string; nombre: string };
+    usuario: UsuarioAlexa;
     locale: string;
     attributes: Record<string, string>;
     medicamento: string;
@@ -303,7 +423,7 @@ async function guardarMedicamento(
 ): Promise<HandlerResult> {
   const { usuario, locale, horario, now } = ctx;
   const medicamento = limpiarMedicamento(ctx.medicamento);
-  const primer = usuario.nombre.split(" ")[0];
+  const primer = comoSeDice(usuario);
   const horaVoz = horaParaVoz(horario);
   const saved = deps.memory.saveMedicamento(usuario.sessionId, medicamento, horario);
 

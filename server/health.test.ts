@@ -18,5 +18,5 @@ test("sin variables de git el commit es null", () => {
   const body = healthPayload(new Date("2026-10-18T03:15:00.000Z"), { TZ: "" });
   assert.equal(body.tz, "UTC");
   assert.equal(body.commit, null);
-  assert.equal(body.version, "alexa-v2");
+  assert.equal(body.version, "alexa-v3");
 });

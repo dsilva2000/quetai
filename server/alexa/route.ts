@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { handleAlexaRequest } from "./handler";
 import { processAlexaHttp } from "./http";
 import { alexaMemory } from "./memory";
+import { enviarProgreso } from "./progreso";
 import { crearRecordatorioDiario } from "./reminder";
 
 function rawBodyDe(req: Request): Buffer {
@@ -36,6 +37,7 @@ export function registerAlexaRoutes(app: Express) {
             skillId: process.env.ALEXA_SKILL_ID || "",
             timeZone: process.env.TZ || "America/Lima",
             crearRecordatorio: crearRecordatorioDiario,
+            progreso: (body) => enviarProgreso(body),
           }),
       });
       res.status(result.status).json(result.json);

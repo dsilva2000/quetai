@@ -15,6 +15,19 @@ test("el prompt web no menciona el canal Alexa", () => {
   assert.equal(texto.includes("Canal Alexa"), false);
 });
 
+test("el prompt usa apodo, memoria y no inventa noticias", () => {
+  const texto = buildSystemPrompt("María López", [], "", "web", {
+    apodo: "Queta",
+    memoria: "Le gusta el jardín.",
+    noticias: "- [Política] El Congreso debatió el presupuesto",
+  });
+  assert.match(texto, /Queta/);
+  assert.match(texto, /Le gusta el jardín/);
+  assert.match(texto, /No inventes/);
+  assert.match(texto, /No apoyes a un partido/);
+  assert.equal(texto.includes("Canal Alexa"), false);
+});
+
 test("el prompt de Alexa pide frases cortas y sin emojis", () => {
   const texto = buildSystemPrompt("Juan", [], "El usuario ha mencionado: el jardín", "alexa");
   assert.match(texto, /Canal Alexa/);
