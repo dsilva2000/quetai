@@ -309,8 +309,38 @@ test("el chisme usa titulares y no llama al modelo", async () => {
   });
   assert.equal(mem.frases.length, 0);
   assert.equal(progresos, 0);
-  assert.match(ssml(res), /Cantante peruana anuncia gira/);
-  assert.match(ssml(res), /chisme/);
+  assert.match(ssml(res), /cantante peruana anuncia gira/i);
+  assert.match(ssml(res), /te enteraste/i);
+  assert.match(ssml(res), /Dicen que/);
+  assert.match(ssml(res), /más/);
+});
+
+test("el chisme no lee redes ni la frecuencia de la radio", async () => {
+  const mem = memoria({
+    nombre: "Enriqueta",
+    apodo: "Queta",
+    titulares: [
+      {
+        tema: "farandula",
+        titulo: "LOÚLTIMO | Luto en la farándula peruana: falleció la actriz. 95.5 FM 6.1 señal digital abierta Movistar: 34 SD - - Facebook",
+      },
+      {
+        tema: "farandula",
+        titulo: "Cantante peruana anuncia una gira por Lima - RPP",
+      },
+    ],
+  });
+  const res = await handleAlexaRequest(pedido({ intent: "ChismeIntent" }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  const dicho = ssml(res);
+  assert.match(dicho, /Queta/);
+  assert.match(dicho, /te enteraste/i);
+  assert.match(dicho, /gira por Lima/);
+  assert.match(dicho, /Según RPP/);
+  assert.equal(/facebook|instagram|95\.5|LOÚLTIMO/i.test(dicho), false);
 });
 
 test("la política no toma partido y no inventa si no hay titulares", async () => {
@@ -345,16 +375,29 @@ test("dime un apodo lo guarda", async () => {
   assert.match(ssml(res), /te digo Queta/);
 });
 
-test("un gusto se anota sin pasar por el modelo", async () => {
-  const mem = memoria({ nombre: "María" });
+test("un gusto conserva el artículo y usa el apodo", async () => {
+  const mem = memoria({ nombre: "Enriqueta", apodo: "Queta" });
   const res = await handleAlexaRequest(pedido({ intent: "GustosIntent", slots: { tema: "el chisme" } }), {
     memory: mem,
     skillId: SKILL,
     now: () => AHORA,
   });
-  assert.deepEqual(mem.temas, ["chisme"]);
+  assert.deepEqual(mem.temas, ["el chisme"]);
   assert.equal(mem.frases.length, 0);
-  assert.match(ssml(res), /chisme/);
+  assert.match(ssml(res), /Anotado, Queta/);
+  assert.match(ssml(res), /Te gusta el chisme/);
+  assert.equal(ssml(res).includes("Enriqueta"), false);
+});
+
+test("di me queta guarda el apodo con mayúscula", async () => {
+  const mem = memoria({ nombre: "Enriqueta" });
+  const res = await handleAlexaRequest(pedido({ intent: "CambiarApodoIntent", slots: { apodo: "queta" } }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.deepEqual(mem.apodos, ["Queta"]);
+  assert.match(ssml(res), /te digo Queta/);
 });
 
 test("la charla libre avisa antes y llama al modelo", async () => {

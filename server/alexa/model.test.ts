@@ -87,6 +87,32 @@ test("SearchQuery no comparte muestra con otra ranura", () => {
   }
 });
 
+test("el apodo tiene muestras de di me y los valores Queta y Enriqueta", () => {
+  const muestras = [
+    "di me {apodo}",
+    "llámame {apodo}",
+    "dime {apodo}",
+    "quiero que me digas {apodo}",
+    "me dicen {apodo}",
+    "mi apodo es {apodo}",
+  ];
+  for (const locale of LOCALES) {
+    const lang = modelo(locale).interactionModel.languageModel;
+    const intent = lang.intents.find((item: { name: string }) => item.name === "CambiarApodoIntent");
+    assert.equal(intent.slots[0].type, "APODO", locale);
+    for (const muestra of muestras) {
+      assert.ok(intent.samples.includes(muestra), `${locale} ${muestra}`);
+    }
+    const gustos = lang.intents.find((item: { name: string }) => item.name === "GustosIntent");
+    assert.equal(gustos.samples.includes("me gusta el {tema}"), false, locale);
+    const tipo = lang.types.find((item: { name: string }) => item.name === "APODO");
+    const valores = tipo.values.map((item: { name: { value: string } }) => item.name.value);
+    for (const nombre of ["Queta", "Quetita", "Enriqueta"]) {
+      assert.ok(valores.includes(nombre), `${locale} ${nombre}`);
+    }
+  }
+});
+
 test("las frases de ejemplo usan la invocación de dos palabras", () => {
   const skill = JSON.parse(readFileSync(path.join(RAIZ, "skill.json"), "utf8"));
   for (const locale of LOCALES) {

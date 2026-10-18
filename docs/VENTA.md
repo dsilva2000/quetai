@@ -15,7 +15,7 @@ Para publicar en la tienda de Alexa (o dejarla en beta solo para Echos invitados
 5. **Permiso de recordatorios.** Justifícalo: la persona pide «recuérdame tomar … a las …» y el aviso suena en ese Echo. Si no acepta el permiso, igual queda anotado y se muestra la tarjeta de consentimiento.
 6. **Niños.** La skill es para adultos mayores. Márcala como no dirigida a niños.
 7. **Pruebas.** El simulador y un Echo en beta, en los tres idiomas. Invocación, chisme, política, apodo, un medicamento y «para».
-8. **Endpoint.** `https://quetai.onrender.com/api/alexa`, firma activa, `ALEXA_SKILL_ID` puesto. `/api/health` debe decir `"version": "alexa-v3"`.
+8. **Endpoint.** `https://quetai.onrender.com/api/alexa`, firma activa, `ALEXA_SKILL_ID` puesto. `/api/health` debe decir `"version": "alexa-v3.1"`.
 
 El paso a paso de la consola está en [ALEXA.md](./ALEXA.md). El perfil de cada persona, en [PERFIL.md](./PERFIL.md).
 
