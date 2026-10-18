@@ -5,6 +5,7 @@ import {
   buildSystemPrompt,
   detectarMedicamento,
   resumirHistorial,
+  tropiezoDe,
 } from "./prompt.ts";
 
 test("el prompt web no menciona el canal Alexa", () => {
@@ -50,6 +51,12 @@ test("resumirHistorial espera al menos cuatro mensajes", () => {
     { rol: "assistant", contenido: "cuéntame" },
   ]);
   assert.match(resumen, /el jardín \| mis nietos/);
+});
+
+test("el tropiezo usa el apodo", () => {
+  const texto = tropiezoDe("Enriqueta", "Queta");
+  assert.match(texto, /Ay, Queta/);
+  assert.equal(texto.includes("Enriqueta"), false);
 });
 
 test("acortarOraciones deja como máximo tres", () => {

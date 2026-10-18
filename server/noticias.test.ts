@@ -7,6 +7,7 @@ import {
   recortarEnPalabra,
   resetNoticiasCache,
   respuestaDesdeTitulares,
+  solapan,
   urlRss,
 } from "./noticias.ts";
 
@@ -100,6 +101,38 @@ test("el rss usa solo el título y habla como un amigo", () => {
   assert.match(dicho, /¿Quieres que te cuente más\?/);
   assert.equal(dicho.includes("tercer chisme"), false);
   assert.equal(dicho.includes("NO LEER"), false);
+});
+
+test("capitaliza, quita el dateline y no lee una URL", () => {
+  const sigla = prepararTitular("CCL proyecta un alza del dólar esta semana - RPP");
+  assert.match(sigla!.titulo, /^CCL proyecta/);
+  assert.equal(sigla!.titulo.startsWith("cCL"), false);
+  const dateline = prepararTitular("perú.- perú lanzará un satélite propio este año - Andina");
+  assert.match(dateline!.titulo, /^Perú lanzará/);
+  assert.equal(/^perú/.test(dateline!.titulo), false);
+  const lima = prepararTitular("Lima.- El Congreso aprobó la norma fiscal hoy - El Peruano");
+  assert.match(lima!.titulo, /^El Congreso/);
+  const url = prepararTitular("El gobierno anunció una medida económica hoy - https://www.notiperu.com.pe/");
+  assert.equal(url!.medio, "Notiperú");
+  const dicho = respuestaDesdeTitulares("politica", [
+    { tema: "politica", titulo: "El gobierno anunció una medida económica hoy - https://www.notiperu.com.pe/" },
+  ], "Queta");
+  assert.match(dicho, /Según Notiperú/);
+  assert.equal(dicho.includes("http"), false);
+  assert.equal(dicho.includes("notiperu.com"), false);
+});
+
+test("no repite titulares casi iguales", () => {
+  const items = [
+    { tema: "politica" as const, titulo: "El MEF anuncia política fiscal contracíclica para el 2027", medio: "El Peruano" },
+    { tema: "politica" as const, titulo: "Política fiscal contracíclica: el MEF dio detalles hoy", medio: "Andina" },
+    { tema: "politica" as const, titulo: "Un equipo peruano ganó la copa local de fútbol", medio: "RPP" },
+  ];
+  assert.ok(solapan(items[0].titulo, items[1].titulo) > 0.6);
+  const dicho = respuestaDesdeTitulares("politica", items, "Queta");
+  assert.match(dicho, /contracíclica/);
+  assert.match(dicho, /copa local/);
+  assert.equal((dicho.match(/contracíclica/gi) || []).length, 1);
 });
 
 test("NEWS_ENABLED=false no consulta la red", async () => {

@@ -1,4 +1,5 @@
 import { nombreAsistente, nombreHablado } from "../brand";
+import { resumenErrorLlm } from "../llm";
 import { respuestaDesdeTitulares, type TemaNoticia, type Titular } from "../noticias";
 import { extraerNombre, horaParaVoz, limpiarMedicamento, pareceHora, parseHoraLibre } from "./hora";
 import { crearRecordatorioDiario, partesEnZona } from "./reminder";
@@ -91,6 +92,12 @@ function limpiarApodo(raw: string): string {
     .filter(Boolean)
     .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase())
     .join(" ");
+}
+
+function nombreEnFrase(texto: string): string {
+  const coincidencia = texto.match(/^(?:me llamo|mi nombre es|soy)\s+(.+)$/i);
+  if (!coincidencia) return "";
+  return limpiarApodo(coincidencia[1]);
 }
 
 function limpiarTema(raw: string): string {
@@ -299,6 +306,17 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
   if (noticias) return noticias;
 
   const frase = textoLibre(body);
+  const presentacion = intent === "DecirNombreIntent"
+    ? limpiarApodo(slot(body, "nombre"))
+    : nombreEnFrase(frase);
+  if (presentacion) {
+    const primer = comoSeDice(usuario);
+    const mismo = presentacion.toLowerCase() === primer.toLowerCase();
+    const texto = mismo
+      ? `Sí, ${primer}. ¿Cómo estás hoy?`
+      : `${primer}, te tengo como ${presentacion}. ¿Cómo estás hoy?`;
+    return hablar(texto, { locale, attributes });
+  }
   if (!frase || intent === "AMAZON.FallbackIntent") {
     return hablar("No te escuché bien. Repítelo despacio, por favor.", {
       locale,
@@ -318,7 +336,7 @@ export async function handleAlexaRequest(body: AlexaRequestBody, deps: HandlerDe
     const respuesta = await deps.memory.conversar(usuario.sessionId, frase);
     return hablar(respuesta, { locale, attributes });
   } catch (err: any) {
-    console.error("[alexa] conversar:", err?.message || err);
+    console.error(JSON.stringify({ evento: "alexa.conversar", ...resumenErrorLlm(err) }));
     const primer = comoSeDice(usuario);
     return hablar(`Ay, ${primer}, tuve un pequeño tropiezo. ¿Me lo repites?`, { locale, attributes });
   }

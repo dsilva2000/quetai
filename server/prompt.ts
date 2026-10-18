@@ -123,6 +123,10 @@ export function mensajeTropiezo(nombre: string): string {
   return `Ay, ${nombre.split(" ")[0]}, tuve un pequeño tropiezo. ¿Me vuelves a contar?`;
 }
 
+export function tropiezoDe(nombre: string, apodo?: string | null): string {
+  return mensajeTropiezo(nombreHablado(nombre, apodo));
+}
+
 export function acortarOraciones(texto: string, maxOraciones = 3): string {
   const limpio = texto.replace(/\s+/g, " ").trim();
   if (!limpio) return "";

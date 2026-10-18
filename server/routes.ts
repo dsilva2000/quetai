@@ -7,10 +7,11 @@ import { registerAlexaRoutes } from "./alexa/route";
 import { healthPayload } from "./health";
 import { registerLegalRoutes } from "./legal";
 import { programarActualizacionMemoria, promptDeSesion, streamChat } from "./conversation";
+import { logLlm, modeloFallback, modeloPrincipal, completarTexto } from "./llm";
 import {
   armarContexto,
   detectarMedicamento,
-  mensajeTropiezo,
+  tropiezoDe,
 } from "./prompt";
 
 // PIN de administrador — en producción usar variable de entorno
@@ -116,6 +117,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     res.setHeader("Connection", "keep-alive");
 
     let respuestaCompleta = "";
+    const inicioChat = Date.now();
 
     try {
       const stream = await streamChat(systemPrompt, conv);
@@ -142,8 +144,20 @@ export function registerRoutes(_httpServer: Server, app: Express) {
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: medsFinales })}\n\n`);
       res.end();
     } catch (err: any) {
-      console.error("Error LLM:", err?.message || err);
-      const fb = mensajeTropiezo(usuario.nombre);
+      logLlm("chat.stream.error", modeloPrincipal(), inicioChat, err);
+      let fb = "";
+      try {
+        fb = await completarTexto({
+          system: systemPrompt,
+          user: conv,
+          maxTokens: 300,
+          model: modeloFallback(),
+          timeoutMs: 8000,
+        });
+      } catch (err2: any) {
+        logLlm("chat.fallback.error", modeloFallback(), Date.now(), err2);
+      }
+      if (!fb.trim()) fb = tropiezoDe(usuario.nombre, storage.getPerfil(sessionId).apodo);
       res.write(`data: ${JSON.stringify({ token: fb })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: meds })}\n\n`);
       res.end();

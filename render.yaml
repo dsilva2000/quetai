@@ -41,7 +41,7 @@ services:
       - key: LLM_MODEL
         sync: false
       - key: LLM_MODEL_FALLBACK
-        value: llama-3.1-8b-instant
+        value: openai/gpt-oss-20b
       - key: ALEXA_LLM_TIMEOUT_MS
         value: "5500"
       - key: NEWS_ENABLED
