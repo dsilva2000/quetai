@@ -8,6 +8,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "test": "tsx --test server/prompt.test.ts server/alexa/hora.test.ts server/alexa/ssml.test.ts server/alexa/verify.test.ts server/alexa/reminder.test.ts server/alexa/handler.test.ts server/alexa/http.test.ts server/alexa/memory.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

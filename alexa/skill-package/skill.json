@@ -1,0 +1,120 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "es-US": {
+          "name": "Quetai",
+          "summary": "Compañía por voz para adultos mayores. Conversar y anotar un recordatorio.",
+          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre Quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
+          "examplePhrases": [
+            "Alexa, abre quetai",
+            "Alexa, pídele a quetai que converse conmigo",
+            "Alexa, pregúntale a quetai cuáles son mis medicamentos"
+          ],
+          "keywords": [
+            "compañía",
+            "adultos mayores",
+            "conversación",
+            "recordatorios",
+            "familia",
+            "quetai"
+          ]
+        },
+        "es-ES": {
+          "name": "Quetai",
+          "summary": "Compañía por voz para adultos mayores. Conversar y anotar un recordatorio.",
+          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre Quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
+          "examplePhrases": [
+            "Alexa, abre quetai",
+            "Alexa, pídele a quetai que converse conmigo",
+            "Alexa, pregúntale a quetai cuáles son mis medicamentos"
+          ],
+          "keywords": [
+            "compañía",
+            "adultos mayores",
+            "conversación",
+            "recordatorios",
+            "familia",
+            "quetai"
+          ]
+        },
+        "es-MX": {
+          "name": "Quetai",
+          "summary": "Compañía por voz para adultos mayores. Conversar y anotar un recordatorio.",
+          "description": "Quetai conversa con calma, en español, con personas mayores. Puedes contarle de tu familia, la comida o cómo te sientes, y pedirle que recuerde un medicamento a la hora que tú digas.\n\nDi: Alexa, abre Quetai.\n\nQuetai no es un médico, no diagnostica y no cambia dosis. Un recordatorio solo repite lo que tú anotaste. Si te sientes mal, llama a un familiar o a emergencias.\n\nNo hace falta crear una cuenta. Quetai recuerda la conversación de este dispositivo.",
+          "examplePhrases": [
+            "Alexa, abre quetai",
+            "Alexa, pídele a quetai que converse conmigo",
+            "Alexa, pregúntale a quetai cuáles son mis medicamentos"
+          ],
+          "keywords": [
+            "compañía",
+            "adultos mayores",
+            "conversación",
+            "recordatorios",
+            "familia",
+            "quetai"
+          ]
+        }
+      },
+      "isAvailableWorldwide": true,
+      "testingInstructions": "No hace falta account linking. 1) Abre la skill. 2) Cuando pida el nombre, di: me llamo María. 3) Conversar una frase corta. 4) Di: recuérdame tomar losartán a las ocho de la mañana. 5) Di: cuáles son mis medicamentos. 6) Di: para. El endpoint debe verificar la firma de Alexa. No actives ALEXA_SKIP_VERIFICATION. Configura ALEXA_SKILL_ID con el id de esta skill.",
+      "category": "LIFESTYLE"
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://quetai.onrender.com/api/alexa",
+          "sslCertificateType": "Trusted"
+        },
+        "regions": {
+          "NA": {
+            "endpoint": {
+              "uri": "https://quetai.onrender.com/api/alexa",
+              "sslCertificateType": "Trusted"
+            }
+          },
+          "EU": {
+            "endpoint": {
+              "uri": "https://quetai.onrender.com/api/alexa",
+              "sslCertificateType": "Trusted"
+            }
+          },
+          "FE": {
+            "endpoint": {
+              "uri": "https://quetai.onrender.com/api/alexa",
+              "sslCertificateType": "Trusted"
+            }
+          }
+        }
+      }
+    },
+    "permissions": [
+      {
+        "name": "alexa::alerts:reminders:skill:readwrite"
+      }
+    ],
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": true,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "es-US": {
+          "privacyPolicyUrl": "https://quetai.onrender.com/privacidad",
+          "termsOfUseUrl": "https://quetai.onrender.com/terminos"
+        },
+        "es-ES": {
+          "privacyPolicyUrl": "https://quetai.onrender.com/privacidad",
+          "termsOfUseUrl": "https://quetai.onrender.com/terminos"
+        },
+        "es-MX": {
+          "privacyPolicyUrl": "https://quetai.onrender.com/privacidad",
+          "termsOfUseUrl": "https://quetai.onrender.com/terminos"
+        }
+      }
+    }
+  }
+}

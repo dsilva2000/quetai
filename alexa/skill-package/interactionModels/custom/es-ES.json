@@ -1,0 +1,267 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "quetai",
+      "intents": [
+        {
+          "name": "ConversarIntent",
+          "slots": [
+            {
+              "name": "frase",
+              "type": "FRASE_LIBRE"
+            }
+          ],
+          "samples": [
+            "{frase}",
+            "quiero decir {frase}",
+            "te cuento {frase}",
+            "oye {frase}",
+            "escucha {frase}",
+            "sabes que {frase}"
+          ]
+        },
+        {
+          "name": "PreguntarIntent",
+          "slots": [
+            {
+              "name": "consulta",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "pregúntame {consulta}",
+            "preguntame {consulta}",
+            "quiero saber {consulta}",
+            "háblame de {consulta}",
+            "hablame de {consulta}",
+            "cuéntame sobre {consulta}",
+            "cuentame sobre {consulta}",
+            "qué opinas de {consulta}",
+            "que opinas de {consulta}"
+          ]
+        },
+        {
+          "name": "CharlarIntent",
+          "slots": [],
+          "samples": [
+            "conversa conmigo",
+            "converse conmigo",
+            "que converse conmigo",
+            "quiero conversar",
+            "háblame",
+            "hablame",
+            "cuéntame algo",
+            "cuentame algo",
+            "hazme compañía",
+            "hazme compania",
+            "quiero hablar"
+          ]
+        },
+        {
+          "name": "DecirNombreIntent",
+          "slots": [
+            {
+              "name": "nombre",
+              "type": "NOMBRE_PROPIO"
+            }
+          ],
+          "samples": [
+            "me llamo {nombre}",
+            "mi nombre es {nombre}",
+            "soy {nombre}",
+            "puedes llamarme {nombre}",
+            "{nombre}"
+          ]
+        },
+        {
+          "name": "RecordarMedicamentoIntent",
+          "slots": [
+            {
+              "name": "medicamento",
+              "type": "MEDICAMENTO"
+            },
+            {
+              "name": "hora",
+              "type": "AMAZON.TIME"
+            }
+          ],
+          "samples": [
+            "recuérdame tomar {medicamento} a las {hora}",
+            "recuerdame tomar {medicamento} a las {hora}",
+            "tomo {medicamento} a las {hora}",
+            "guarda que tomo {medicamento} a las {hora}",
+            "anota mi {medicamento} a las {hora}",
+            "anota que tomo {medicamento} a las {hora}",
+            "recuérdame el {medicamento} a las {hora}"
+          ]
+        },
+        {
+          "name": "ListarMedicamentosIntent",
+          "slots": [],
+          "samples": [
+            "cuáles son mis medicamentos",
+            "cuales son mis medicamentos",
+            "qué medicamentos tengo",
+            "que medicamentos tengo",
+            "qué pastillas tengo",
+            "que pastillas tengo",
+            "mis recordatorios",
+            "a qué hora tomo mis pastillas",
+            "a que hora tomo mis pastillas"
+          ]
+        },
+        {
+          "name": "OlvidarConversacionIntent",
+          "slots": [],
+          "samples": [
+            "empecemos de nuevo",
+            "olvida la conversación",
+            "olvida la conversacion",
+            "borra nuestra charla",
+            "nueva conversación",
+            "nueva conversacion"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "slots": [],
+          "samples": [
+            "ayuda",
+            "qué puedes hacer",
+            "que puedes hacer",
+            "cómo te uso",
+            "como te uso"
+          ]
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "slots": [],
+          "samples": [
+            "para",
+            "detente",
+            "adiós",
+            "adios",
+            "hasta luego",
+            "chau",
+            "chao",
+            "eso es todo"
+          ]
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "slots": [],
+          "samples": [
+            "cancela",
+            "olvídalo",
+            "olvidalo",
+            "déjalo",
+            "dejalo"
+          ]
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "slots": [],
+          "samples": [
+            "inicio",
+            "vuelve al inicio"
+          ]
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "slots": []
+        },
+        {
+          "name": "AMAZON.RepeatIntent",
+          "slots": [],
+          "samples": [
+            "repite",
+            "repítemelo",
+            "repitemelo",
+            "no escuché",
+            "no escuche",
+            "qué dijiste",
+            "que dijiste"
+          ]
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "slots": [],
+          "samples": [
+            "sí",
+            "si",
+            "claro",
+            "por supuesto"
+          ]
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "slots": [],
+          "samples": [
+            "no",
+            "nop",
+            "para nada"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "name": "FRASE_LIBRE",
+          "values": [
+            { "name": { "value": "cómo estás" } },
+            { "name": { "value": "cómo te fue hoy" } },
+            { "name": { "value": "extraño a mi familia" } },
+            { "name": { "value": "vinieron mis nietos" } },
+            { "name": { "value": "qué puedo cocinar" } },
+            { "name": { "value": "me siento un poco solo" } },
+            { "name": { "value": "cuéntame un recuerdo" } },
+            { "name": { "value": "hoy salí a caminar" } }
+          ]
+        },
+        {
+          "name": "NOMBRE_PROPIO",
+          "values": [
+            { "name": { "value": "María" } },
+            { "name": { "value": "José" } },
+            { "name": { "value": "Juan" } },
+            { "name": { "value": "Ana" } },
+            { "name": { "value": "Rosa" } },
+            { "name": { "value": "Carmen" } },
+            { "name": { "value": "Luis" } },
+            { "name": { "value": "Pedro" } },
+            { "name": { "value": "Carlos" } },
+            { "name": { "value": "Elena" } },
+            { "name": { "value": "Lucía" } },
+            { "name": { "value": "Jorge" } },
+            { "name": { "value": "Miguel" } },
+            { "name": { "value": "Teresa" } },
+            { "name": { "value": "Gloria" } },
+            { "name": { "value": "Fernando" } },
+            { "name": { "value": "Daniel" } },
+            { "name": { "value": "Sofía" } },
+            { "name": { "value": "Antonio" } },
+            { "name": { "value": "Juana" } }
+          ]
+        },
+        {
+          "name": "MEDICAMENTO",
+          "values": [
+            { "name": { "value": "losartán", "synonyms": ["losartan"] } },
+            { "name": { "value": "enalapril" } },
+            { "name": { "value": "metformina" } },
+            { "name": { "value": "insulina" } },
+            { "name": { "value": "aspirina" } },
+            { "name": { "value": "paracetamol" } },
+            { "name": { "value": "omeprazol" } },
+            { "name": { "value": "atorvastatina" } },
+            { "name": { "value": "levotiroxina" } },
+            { "name": { "value": "amlodipino" } },
+            { "name": { "value": "calcio" } },
+            { "name": { "value": "vitaminas" } },
+            { "name": { "value": "pastilla" } },
+            { "name": { "value": "jarabe" } }
+          ]
+        }
+      ]
+    }
+  }
+}

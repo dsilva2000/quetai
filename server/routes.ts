@@ -1,11 +1,18 @@
 import type { Express } from "express";
 import { Server } from "http";
-import OpenAI from "openai";
 import webpush from "web-push";
 import { inicializarFCM } from "./fcm";
 import { storage } from "./storage";
-
-const openai = new OpenAI();
+import { registerAlexaRoutes } from "./alexa/route";
+import { registerLegalRoutes } from "./legal";
+import { streamChat } from "./conversation";
+import {
+  armarContexto,
+  buildSystemPrompt,
+  detectarMedicamento,
+  mensajeTropiezo,
+  resumirHistorial,
+} from "./prompt";
 
 // PIN de administrador — en producción usar variable de entorno
 const ADMIN_PIN = process.env.ADMIN_PIN || "1234";
@@ -30,84 +37,10 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 // Exponer la clave pública al frontend
 export const vapidPublicKey = VAPID_PUBLIC;
 
-// ─── System prompt ─────────────────────────────────────────────────────────────
-function buildSystemPrompt(
-  nombre: string,
-  medicamentos: { nombre: string; horario: string }[],
-  historialResumen: string
-): string {
-  const primerNombre = nombre.split(" ")[0];
-  const medTexto =
-    medicamentos.length > 0
-      ? medicamentos.map((m) => `- ${m.nombre} a las ${m.horario}`).join("\n")
-      : "Ninguno registrado aún.";
-
-  return `Eres QUETAI, un compañero conversacional cálido y cercano para adultos mayores en Latinoamérica.
-
-## Tu personalidad
-- Eres como un familiar querido: paciente, curioso, alegre, respetuoso.
-- Hablas en español latinoamericano sencillo, con frases cortas y claras.
-- SIEMPRE llamas al usuario por su primer nombre: ${primerNombre}.
-- Jamás eres frío, técnico ni condescendiente.
-- Usas algún refrán o dicho popular latinoamericano de vez en cuando (con moderación).
-
-## Tus temas favoritos (habla sobre ellos con entusiasmo genuino)
-- **Familia y nietos**: historias, travesuras, visitas, cumpleaños, el crecimiento de los niños
-- **Cocina y gastronomía**: recetas tradicionales, platillos típicos, trucos de cocina, sabores de la infancia
-- **Hogar**: consejos de limpieza, organización, plantas, jardín, remedios caseros
-- **Viajes y destinos**: lugares de Latinoamérica y el mundo, recuerdos de viajes
-- **Autos**: modelos clásicos, anécdotas de manejo, cuidado del auto
-- **Salud y bienestar**: ejercicio suave, alimentación — siempre positivo, nunca alarmista
-- **Historia y cultura**: costumbres de antes, comparar épocas
-- **Selecciones del Reader's Digest**: anécdotas de la vida, curiosidades, humor, inspiración
-- **Religión y fe**: festividades, reflexiones espirituales
-- **Entretenimiento**: telenovelas, música, fiestas de pueblo
-
-## Medicamentos de ${primerNombre}
-${medTexto}
-
-Cuando ${primerNombre} mencione un medicamento con horario, confirma amablemente que lo guardaste con la frase:
-"Perfecto, ya guardé que tomas [nombre] a las [horario]."
-Si menciona un medicamento sin horario, pregúntale a qué hora lo toma.
-
-## REGLA: Manejo de repeticiones
-Si ${primerNombre} repite algo ya contado:
-- NO lo corrijas bruscamente.
-- Di algo como: "Claro que sí, ${primerNombre}, ya me habías contado eso — ¡qué bonito recuerdo! Y a propósito..."
-- Redirige con gentileza. Nunca digas "ya me dijiste".
-
-## Lo que ya se ha hablado (para detectar repeticiones)
-${historialResumen || "Conversación recién iniciada."}
-
-## Formato
-- Máximo 3-4 oraciones por respuesta.
-- Todo en texto natural y conversacional, sin listas ni bullets.
-- Termina siempre con una pregunta suave o un comentario que invite a seguir hablando.`;
-}
-
-function resumirHistorial(msgs: { rol: string; contenido: string }[]): string {
-  if (msgs.length < 4) return "";
-  const temas = msgs
-    .filter((m) => m.rol === "user")
-    .slice(-20)
-    .map((m) => m.contenido);
-  return `El usuario ha mencionado: ${temas.join(" | ")}`;
-}
-
-function detectarMedicamento(texto: string): { nombre: string; horario: string } | null {
-  const patrones = [
-    /(?:guardé|registré|anotaremos?).*?(?:tomas?)\s+([^,.!\n?]+?)\s+a las\s+([\d:]+(?:\s*(?:am|pm|de la mañana|de la tarde|de la noche))?)/i,
-    /ya guardé que tomas\s+([^,.!\n?]+?)\s+a las\s+([\d:]+(?:\s*(?:am|pm|de la mañana|de la tarde|de la noche))?)/i,
-  ];
-  for (const pat of patrones) {
-    const m = texto.match(pat);
-    if (m) return { nombre: m[1].replace(/\*+/g, "").trim(), horario: m[2].replace(/\*+/g, "").trim() };
-  }
-  return null;
-}
-
 // ─── Routes ────────────────────────────────────────────────────────────────────
 export function registerRoutes(_httpServer: Server, app: Express) {
+  registerLegalRoutes(app);
+  registerAlexaRoutes(app);
 
   // ── Sesión del usuario ───────────────────────────────────────────
   app.get("/api/session/:sessionId", (req, res) => {
@@ -177,14 +110,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     storage.addMensaje(sessionId, "user", mensaje.trim(), orden);
 
     const systemPrompt = buildSystemPrompt(usuario.nombre, meds, resumirHistorial(historial));
-
-    // Construir contexto conversacional (últimos 12 turnos)
-    let conv = "";
-    const ultimos = historial.slice(-12);
-    for (const m of ultimos) {
-      conv += `${m.rol === "user" ? usuario.nombre.split(" ")[0] : "QUETAI"}: ${m.contenido}\n`;
-    }
-    conv += `${usuario.nombre.split(" ")[0]}: ${mensaje.trim()}\nQUETAI:`;
+    const conv = armarContexto(usuario.nombre, historial, mensaje.trim());
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -193,16 +119,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     let respuestaCompleta = "";
 
     try {
-      const stream = await openai.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: conv },
-        ],
-        stream: true,
-        max_tokens: 300,
-        temperature: 0.8,
-      });
+      const stream = await streamChat(systemPrompt, conv);
 
       for await (const chunk of stream) {
         const delta = chunk.choices[0]?.delta?.content;
@@ -226,7 +143,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
       res.end();
     } catch (err: any) {
       console.error("Error LLM:", err?.message || err);
-      const fb = `Ay, ${usuario.nombre.split(" ")[0]}, tuve un pequeño tropiezo. ¿Me vuelves a contar?`;
+      const fb = mensajeTropiezo(usuario.nombre);
       res.write(`data: ${JSON.stringify({ token: fb })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true, medicamentos: meds })}\n\n`);
       res.end();

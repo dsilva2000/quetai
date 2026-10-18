@@ -101,6 +101,15 @@ db.exec(`
     med_id      INTEGER NOT NULL,
     fecha_hora  TEXT    NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS alexa_usuarios (
+    alexa_user_id  TEXT PRIMARY KEY,
+    session_id     TEXT NOT NULL UNIQUE,
+    locale         TEXT,
+    creado_en      TEXT NOT NULL DEFAULT (datetime('now')),
+    ultimo_acceso  TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
+  );
 `);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -157,6 +166,7 @@ export const storage = {
   },
 
   deleteUsuario(sessionId: string): void {
+    db.prepare("DELETE FROM alexa_usuarios WHERE session_id = ?").run(sessionId);
     db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
     db.prepare("DELETE FROM medicamentos WHERE session_id = ?").run(sessionId);
     db.prepare("DELETE FROM usuarios WHERE session_id = ?").run(sessionId);
@@ -170,6 +180,17 @@ export const storage = {
   addMedicamento(sessionId: string, nombre: string, horario: string): Medicamento {
     const info = db.prepare("INSERT INTO medicamentos (session_id, nombre, horario) VALUES (?, ?, ?)").run(sessionId, nombre, horario);
     return rowToMed(db.prepare("SELECT * FROM medicamentos WHERE id = ?").get(info.lastInsertRowid) as any);
+  },
+
+  upsertMedicamento(sessionId: string, nombre: string, horario: string): { created: boolean; medicamento: Medicamento } {
+    const existing = db.prepare(
+      "SELECT * FROM medicamentos WHERE session_id = ? AND lower(nombre) = lower(?) AND activo = 1"
+    ).get(sessionId, nombre) as any;
+    if (existing) {
+      db.prepare("UPDATE medicamentos SET horario = ? WHERE id = ?").run(horario, existing.id);
+      return { created: false, medicamento: rowToMed({ ...existing, horario }) };
+    }
+    return { created: true, medicamento: this.addMedicamento(sessionId, nombre, horario) };
   },
 
   deleteMedicamento(id: number): void {
@@ -283,6 +304,53 @@ export const storage = {
 
   registrarRecordatorioEnviado(sessionId: string, medId: number): void {
     db.prepare("INSERT INTO recordatorios_enviados (session_id, med_id) VALUES (?, ?)").run(sessionId, medId);
+  },
+
+  // ── Alexa: un userId de Amazon → la misma sesión Quetai ─────────
+  getAlexaUsuario(alexaUserId: string): { alexaUserId: string; sessionId: string; nombre: string; locale: string | null } | undefined {
+    const row = db.prepare(`
+      SELECT a.alexa_user_id as alexaUserId, a.session_id as sessionId, a.locale as locale, u.nombre as nombre
+      FROM alexa_usuarios a
+      JOIN usuarios u ON u.session_id = a.session_id
+      WHERE a.alexa_user_id = ?
+    `).get(alexaUserId) as any;
+    return row || undefined;
+  },
+
+  registerAlexaUsuario(alexaUserId: string, nombre: string, locale: string): { sessionId: string; nombre: string } {
+    const ya = this.getAlexaUsuario(alexaUserId);
+    if (ya) return { sessionId: ya.sessionId, nombre: ya.nombre };
+
+    const sessionId = `alexa:${alexaUserId}`;
+    const crear = db.transaction(() => {
+      const existe = db.prepare("SELECT id FROM usuarios WHERE session_id = ?").get(sessionId);
+      if (!existe) {
+        db.prepare("INSERT INTO usuarios (session_id, nombre) VALUES (?, ?)").run(sessionId, nombre);
+      }
+      db.prepare(
+        "INSERT INTO alexa_usuarios (alexa_user_id, session_id, locale) VALUES (?, ?, ?)"
+      ).run(alexaUserId, sessionId, locale || null);
+    });
+    try {
+      crear();
+    } catch (err) {
+      const otraVez = this.getAlexaUsuario(alexaUserId);
+      if (otraVez) return { sessionId: otraVez.sessionId, nombre: otraVez.nombre };
+      throw err;
+    }
+    return { sessionId, nombre };
+  },
+
+  touchAlexaUsuario(alexaUserId: string, locale?: string): void {
+    if (locale) {
+      db.prepare(
+        "UPDATE alexa_usuarios SET ultimo_acceso = datetime('now'), locale = ? WHERE alexa_user_id = ?"
+      ).run(locale, alexaUserId);
+    } else {
+      db.prepare(
+        "UPDATE alexa_usuarios SET ultimo_acceso = datetime('now') WHERE alexa_user_id = ?"
+      ).run(alexaUserId);
+    }
   },
 
   // ── Admin stats ─────────────────────────────────────────────────

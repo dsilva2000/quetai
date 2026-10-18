@@ -29,6 +29,10 @@ services:
         sync: false
       - key: ADMIN_PIN
         value: "0069"
+      - key: ALEXA_SKILL_ID
+        sync: false
+      - key: ALEXA_SKIP_VERIFICATION
+        value: "false"
     disk:
       name: quetai-data
       mountPath: /app/data
