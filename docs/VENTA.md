@@ -15,7 +15,7 @@ Para publicar en la tienda de Alexa (o dejarla en beta solo para Echos invitados
 5. **Permiso de recordatorios.** Justifícalo: la persona pide «recuérdame tomar … a las …» y el aviso suena en ese Echo. Si no acepta el permiso, igual queda anotado y se muestra la tarjeta de consentimiento.
 6. **Niños.** La skill es para adultos mayores. Márcala como no dirigida a niños.
 7. **Pruebas.** El simulador y un Echo en beta, en los tres idiomas. Invocación, chisme, política, apodo, un medicamento y «para».
-8. **Endpoint.** `https://quetai.onrender.com/api/alexa`, firma activa, `ALEXA_SKILL_ID` puesto. `/api/health` debe decir `"version": "alexa-v3.1"`.
+8. **Endpoint.** `https://quetai.onrender.com/api/alexa`, firma activa, `ALEXA_SKILL_ID` puesto. `/api/health` debe decir `"version": "alexa-v3.2"`.
 
 El paso a paso de la consola está en [ALEXA.md](./ALEXA.md). El perfil de cada persona, en [PERFIL.md](./PERFIL.md).
 
@@ -35,7 +35,7 @@ Un precio de arranque, a modo de hipótesis y no de lista: una suscripción mens
 - Borrado: el panel elimina a la persona, o se pide por hola@quetai.tech.
 - `ASSISTANT_NAME` cambia cómo se presenta el asistente (por defecto `Quetai`). La invocación de Alexa sigue siendo `mi quetai` hasta que cada cliente publique su propia skill.
 - `NEWS_ENABLED=false` apaga los titulares.
-- `LLM_MODEL` y `LLM_MODEL_FALLBACK` eligen el modelo del endpoint compatible con OpenAI. El de por defecto es `llama-3.3-70b-versatile`. Si el proveedor tiene uno más fuerte, se cambia en Render, no en el código. Si el principal falla o no alcanza el tiempo de Alexa, se usa el fallback (`llama-3.1-8b-instant`).
+- `LLM_MODEL` y `LLM_MODEL_FALLBACK` eligen el modelo del endpoint compatible con OpenAI. El de por defecto es `openai/gpt-oss-120b`, y el de reserva `openai/gpt-oss-20b`. Si el principal falla, se usa el fallback.
 
 ## Salud
 

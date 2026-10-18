@@ -37,7 +37,7 @@ La sesión de un Echo es `alexa:` más el userId que envía Amazon. Así no se m
 1. Revisa el pull request y únelo a `master`.
 2. Render despliega solo la rama `master` (`render.yaml`, servicio `quetai`). El build **no compila** el servidor: solo hace `npm install` y recompila `better-sqlite3`. Lo que se ejecuta es `dist/index.cjs`, el bundle que está en git. Si ese archivo no entró en el merge, `/api/alexa` y `/privacidad` siguen devolviendo la página web.
 3. Espera a que el deploy quede en verde.
-4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3.1"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en una versión anterior, sigue corriendo el bundle viejo. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
+4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3.2"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en una versión anterior, sigue corriendo el bundle viejo. El campo `model` dice qué modelo está configurado. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
    - `https://quetai.onrender.com/api/health` → debe decir `"status": "ok"`.
    - `https://quetai.onrender.com/api/alexa` → debe decir `"servicio": "quetai-alexa"` y `"verificacion": "activa"`.
    - `https://quetai.onrender.com/privacidad`
@@ -55,8 +55,8 @@ En Render → servicio `quetai` → Environment. No las pongas en git.
 | `ALEXA_SKIP_VERIFICATION` | `false` (o bórrala) | Sí |
 | `OPENAI_API_KEY` | La clave que ya usa el chat | Ya está |
 | `OPENAI_BASE_URL` | El host compatible con la API de OpenAI (hoy, Groq) | Ya está |
-| `LLM_MODEL` | Modelo principal. Si lo dejas vacío, usa `llama-3.3-70b-versatile`. Pon aquí uno más fuerte si tu endpoint lo tiene | No |
-| `LLM_MODEL_FALLBACK` | Si el principal falla o no alcanza el tiempo de Alexa. Por defecto `llama-3.1-8b-instant` | No |
+| `LLM_MODEL` | Modelo principal. Si lo dejas vacío, usa `openai/gpt-oss-120b`. Groq apagó `llama-3.3-70b-versatile` el 16 de agosto de 2026; si la variable sigue con ese id, el servidor lo cambia solo | No |
+| `LLM_MODEL_FALLBACK` | Si el principal falla. Por defecto `openai/gpt-oss-20b` (reemplazo de `llama-3.1-8b-instant`, también apagado) | No |
 | `ALEXA_LLM_TIMEOUT_MS` | Tope del modelo en Alexa, en milisegundos. Por defecto `5500` | No |
 | `ASSISTANT_NAME` | Cómo se presenta. Por defecto `Quetai`. La invocación de Alexa sigue siendo `mi quetai` | No |
 | `NEWS_ENABLED` | `true` para titulares de Google News. `false` los apaga | No |
@@ -252,7 +252,7 @@ El endpoint HTTPS déjalo como en la consola. Un `ask deploy` completo puede int
 | 400 skill id no coincide | `ALEXA_SKILL_ID` en Render. |
 | Responde pero no recuerda al día siguiente | El disco de Render (`quetai-data` en `/app/data`) tiene que seguir montado. Sin disco, SQLite se borra en cada deploy. |
 | No suena el recordatorio en el Echo | Permiso aceptado en la app de Alexa. La hora es de Lima (`TZ=America/Lima`). El plan gratuito de Render puede tardar en despertar; el aviso lo pronuncia Alexa, no el servidor, una vez creado. |
-| La respuesta tarda o sale el tropiezo | `OPENAI_API_KEY` y `OPENAI_BASE_URL`. El modelo es `llama-3.3-70b-versatile`. |
+| La respuesta tarda o sale el tropiezo | Mira el log `llm.error` en Render (clase, status, código, milisegundos; sin la clave). `/api/health` debe mostrar `model` `openai/gpt-oss-120b` si no cambiaste `LLM_MODEL`. |
 | No abre con «quetai» | La invocación es `mi quetai`. Di «Alexa, abre mi quetai». |
 
 Para borrar los datos de una persona: panel `https://quetai.onrender.com/#/admin`, o un correo a hola@quetai.tech. Borrar el usuario también borra su fila en `alexa_usuarios`.

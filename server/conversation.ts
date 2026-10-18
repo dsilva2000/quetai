@@ -8,8 +8,8 @@ import {
   armarContexto,
   buildSystemPrompt,
   detectarMedicamento,
-  mensajeTropiezo,
   resumirHistorial,
+  tropiezoDe,
   type CanalConversacion,
 } from "./prompt";
 
@@ -94,22 +94,22 @@ export async function conversar(
   const systemPrompt = await promptDeSesion(sessionId, usuario.nombre, meds, historial, canal);
   const conv = armarContexto(usuario.nombre, historial, texto);
 
+  const tropiezo = tropiezoDe(usuario.nombre, storage.getPerfil(sessionId).apodo);
   let respuesta = "";
   try {
     const presupuesto = canal === "alexa" ? timeoutAlexaMs() : undefined;
-    const restante = presupuesto ? Math.max(1200, presupuesto - (Date.now() - inicio)) : undefined;
+    const restante = presupuesto ? Math.max(1500, presupuesto - (Date.now() - inicio)) : undefined;
     respuesta = await completarTexto({
       system: systemPrompt,
       user: conv,
-      maxTokens: canal === "alexa" ? 160 : 300,
+      maxTokens: canal === "alexa" ? 400 : 300,
       timeoutMs: restante,
     });
-  } catch (err: any) {
-    console.error("Error LLM:", err?.message || err);
-    respuesta = mensajeTropiezo(usuario.nombre);
+  } catch {
+    respuesta = tropiezo;
   }
 
-  if (!respuesta.trim()) respuesta = mensajeTropiezo(usuario.nombre);
+  if (!respuesta.trim()) respuesta = tropiezo;
   if (canal === "alexa") respuesta = acortarOraciones(respuesta, 3);
 
   storage.addMensaje(sessionId, "assistant", respuesta, orden + 1);

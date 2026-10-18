@@ -63,7 +63,10 @@ function separarMedio(texto: string): { titulo: string; medio: string } {
     .filter(Boolean);
   if (partes.length < 2) return { titulo: texto.trim(), medio: "" };
   const medio = partes[partes.length - 1];
-  if (medio.length > 48 || medio.split(/\s+/).length > 6) return { titulo: texto.trim(), medio: "" };
+  const esUrl = /^https?:\/\//i.test(medio) || /^www\./i.test(medio);
+  if (esUrl ? medio.length > 160 : medio.length > 48 || medio.split(/\s+/).length > 6) {
+    return { titulo: texto.trim(), medio: "" };
+  }
   return { titulo: partes.slice(0, -1).join(". ").trim(), medio };
 }
 
@@ -74,8 +77,77 @@ function quitarPrefijos(texto: string): string {
       /^(?:lo\s*último|loúltimo|último|última hora|ultima hora|urgente|en vivo|exclusivo|alerta)\s*[|:—-]\s*/i,
       "",
     );
+    actual = actual.replace(/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,24}\s*\.\s*-+\s*/i, "");
   }
   return actual.replace(/\|/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const MEDIOS_CONOCIDOS: Record<string, string> = {
+  notiperu: "Notiperú",
+  elperuano: "El Peruano",
+  andina: "Andina",
+  rpp: "RPP",
+  gestion: "Gestión",
+  elcomercio: "El Comercio",
+  larepublica: "La República",
+  peru21: "Perú21",
+  exitosa: "Exitosa",
+  canaln: "Canal N",
+};
+
+/** Una URL no se lee en voz. Se vuelve el nombre del medio, o se omite. */
+export function medioHablado(medio: string): string {
+  const crudo = medio.trim();
+  if (!crudo) return "";
+  const pareceUrl = /^https?:/i.test(crudo) || /^www\./i.test(crudo) || /[a-z0-9-]+\.[a-z]{2,}/i.test(crudo);
+  if (!pareceUrl) return crudo;
+  let host = "";
+  try {
+    host = new URL(crudo.startsWith("http") ? crudo : `https://${crudo}`).hostname;
+  } catch {
+    return "";
+  }
+  host = host.replace(/^www\./i, "").toLowerCase();
+  const etiqueta = host.split(".")[0] || "";
+  if (MEDIOS_CONOCIDOS[etiqueta]) return MEDIOS_CONOCIDOS[etiqueta];
+  if (etiqueta.length < 3) return "";
+  return etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1);
+}
+
+export function capitalizarInicio(texto: string): string {
+  const limpio = texto.trim();
+  if (!limpio) return limpio;
+  return limpio.charAt(0).toUpperCase() + limpio.slice(1);
+}
+
+const TOKENS_VACIOS = new Set(["para", "hoy", "dio", "los", "las", "una", "uno", "del", "con", "por", "que", "sus", "esta", "este"]);
+
+export function tokensTitular(texto: string): string[] {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2 && !TOKENS_VACIOS.has(token));
+}
+
+/** Solape de tokens: intersección / el conjunto más chico. */
+export function solapan(a: string, b: string): number {
+  const A = new Set(tokensTitular(a));
+  const B = new Set(tokensTitular(b));
+  if (A.size === 0 || B.size === 0) return 0;
+  let comunes = 0;
+  for (const token of A) if (B.has(token)) comunes += 1;
+  return comunes / Math.min(A.size, B.size);
+}
+
+export function deduplicarTitulares<T extends { titulo: string }>(items: T[]): T[] {
+  const salida: T[] = [];
+  for (const item of items) {
+    if (salida.some((previo) => solapan(previo.titulo, item.titulo) > 0.6)) continue;
+    salida.push(item);
+  }
+  return salida;
 }
 
 function quitarFrecuencias(texto: string): string {
@@ -111,9 +183,9 @@ export function prepararTitular(crudo: string): { titulo: string; medio: string 
   const separado = separarMedio(base);
   if (FUENTES_DESCARTADAS.has(separado.medio.toLowerCase())) return null;
   let titulo = recortarEnPalabra(quitarFrecuencias(quitarPrefijos(separado.titulo)));
-  titulo = titulo.replace(/[\s|.,:;!-]+$/g, "").trim();
+  titulo = capitalizarInicio(titulo.replace(/[\s|.,:;!-]+$/g, "").trim());
   if (titulo.length < 12) return null;
-  return { titulo, medio: separado.medio };
+  return { titulo, medio: medioHablado(separado.medio) };
 }
 
 export function parseRss(xml: string, tema: TemaNoticia, max = 4): Titular[] {
@@ -130,7 +202,7 @@ export function parseRss(xml: string, tema: TemaNoticia, max = 4): Titular[] {
     salida.push({ tema, titulo: listo.titulo, medio: listo.medio });
     if (salida.length >= max) break;
   }
-  return salida;
+  return deduplicarTitulares(salida);
 }
 
 export async function obtenerTitulares(
@@ -182,23 +254,22 @@ export function formatearTitulares(items: Titular[]): string {
 
 function fraseHablada(item: Titular): string {
   const limpio = prepararTitular(item.titulo);
-  const titulo = (limpio?.titulo || item.titulo).replace(/[.!?]+$/g, "");
-  const medio = (item.medio || limpio?.medio || "").trim();
-  const dicho = titulo.charAt(0).toLowerCase() + titulo.slice(1);
-  return medio ? `${dicho}. Según ${medio}` : dicho;
+  const titulo = capitalizarInicio((limpio?.titulo || item.titulo).replace(/[.!?]+$/g, ""));
+  const medio = medioHablado(item.medio || limpio?.medio || "");
+  return medio ? `${titulo}. Según ${medio}` : titulo;
 }
 
 export function respuestaDesdeTitulares(tema: TemaNoticia | "todos", items: Titular[], nombre: string): string {
   const propios = tema === "todos" ? items : items.filter((item) => item.tema === tema);
   const pool = propios.length > 0 ? propios : items;
-  const elegidos = pool
+  const preparados = pool
     .map((item) => {
       const listo = prepararTitular(item.titulo);
       if (!listo) return null;
-      return { ...item, titulo: listo.titulo, medio: item.medio || listo.medio };
+      return { ...item, titulo: listo.titulo, medio: medioHablado(item.medio || listo.medio) };
     })
-    .filter((item): item is Titular => !!item)
-    .slice(0, 2);
+    .filter((item): item is Titular => !!item);
+  const elegidos = deduplicarTitulares(preparados).slice(0, 2);
   if (elegidos.length === 0) {
     return `${nombre}, ahora no tengo titulares frescos. No voy a inventarte una noticia. ¿Hablamos de otra cosa?`;
   }

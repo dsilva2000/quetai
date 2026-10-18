@@ -400,6 +400,25 @@ test("di me queta guarda el apodo con mayúscula", async () => {
   assert.match(ssml(res), /te digo Queta/);
 });
 
+test("me llamo no entra a la conversación y usa el apodo", async () => {
+  const mem = memoria({ nombre: "Enriqueta", apodo: "Queta" });
+  const porIntent = await handleAlexaRequest(pedido({ intent: "DecirNombreIntent", slots: { nombre: "Enriqueta" } }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.equal(mem.frases.length, 0);
+  assert.match(ssml(porIntent), /Queta/);
+  assert.match(ssml(porIntent), /Enriqueta/);
+  const porFrase = await handleAlexaRequest(pedido({ intent: "ConversarIntent", slots: { frase: "me llamo Enriqueta" } }), {
+    memory: mem,
+    skillId: SKILL,
+    now: () => AHORA,
+  });
+  assert.equal(mem.frases.length, 0);
+  assert.match(ssml(porFrase), /Queta, te tengo como Enriqueta/);
+});
+
 test("la charla libre avisa antes y llama al modelo", async () => {
   const mem = memoria({ nombre: "María" });
   let progresos = 0;
