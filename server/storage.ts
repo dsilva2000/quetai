@@ -110,6 +110,25 @@ db.exec(`
     ultimo_acceso  TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
   );
+
+  CREATE TABLE IF NOT EXISTS perfiles (
+    session_id     TEXT PRIMARY KEY,
+    apodo          TEXT NOT NULL DEFAULT '',
+    temas          TEXT NOT NULL DEFAULT '',
+    evitar         TEXT NOT NULL DEFAULT '',
+    familia        TEXT NOT NULL DEFAULT '',
+    notas          TEXT NOT NULL DEFAULT '',
+    actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS memoria_largo_plazo (
+    session_id     TEXT PRIMARY KEY,
+    resumen        TEXT NOT NULL DEFAULT '',
+    hasta_orden    INTEGER NOT NULL DEFAULT 0,
+    actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
+  );
 `);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -135,6 +154,67 @@ export interface Mensaje {
   contenido: string;
   orden: number;
   creadoEn: string;
+}
+
+export interface Perfil {
+  sessionId: string;
+  apodo: string;
+  temas: string;
+  evitar: string;
+  familia: string;
+  notas: string;
+}
+
+export interface MemoriaLargoPlazo {
+  sessionId: string;
+  resumen: string;
+  hastaOrden: number;
+}
+
+function perfilVacio(sessionId: string): Perfil {
+  return { sessionId, apodo: "", temas: "", evitar: "", familia: "", notas: "" };
+}
+
+function rowToPerfil(row: any): Perfil {
+  return {
+    sessionId: row.session_id,
+    apodo: row.apodo || "",
+    temas: row.temas || "",
+    evitar: row.evitar || "",
+    familia: row.familia || "",
+    notas: row.notas || "",
+  };
+}
+
+function unirLista(actual: string, extra: string): string {
+  const piezas = `${actual},${extra}`.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  for (const pieza of piezas) {
+    const clave = pieza.toLowerCase();
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    salida.push(pieza);
+  }
+  return salida.join(", ");
+}
+
+function mezclarCampo(
+  clave: "apodo" | "temas" | "evitar" | "familia" | "notas",
+  actual: string,
+  entrante: string | undefined,
+  modo: "replace" | "append",
+): string {
+  if (entrante === undefined) return actual;
+  const valor = String(entrante).trim();
+  if (modo !== "append" || clave === "apodo") return valor;
+  if (!valor) return actual;
+  if (clave === "notas") {
+    if (!actual) return valor;
+    if (actual.toLowerCase().includes(valor.toLowerCase())) return actual;
+    return `${actual}. ${valor}`;
+  }
+  return unirLista(actual, valor);
 }
 
 // ─── Storage API ───────────────────────────────────────────────────────────────
@@ -167,6 +247,8 @@ export const storage = {
 
   deleteUsuario(sessionId: string): void {
     db.prepare("DELETE FROM alexa_usuarios WHERE session_id = ?").run(sessionId);
+    db.prepare("DELETE FROM perfiles WHERE session_id = ?").run(sessionId);
+    db.prepare("DELETE FROM memoria_largo_plazo WHERE session_id = ?").run(sessionId);
     db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
     db.prepare("DELETE FROM medicamentos WHERE session_id = ?").run(sessionId);
     db.prepare("DELETE FROM usuarios WHERE session_id = ?").run(sessionId);
@@ -214,6 +296,59 @@ export const storage = {
 
   clearMensajes(sessionId: string): void {
     db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
+  },
+
+  // ── Perfil por sesión (cuidador o voz). Vacío hasta que alguien lo llene. ──
+  getPerfil(sessionId: string): Perfil {
+    const row = db.prepare("SELECT * FROM perfiles WHERE session_id = ?").get(sessionId) as any;
+    if (!row) return perfilVacio(sessionId);
+    return rowToPerfil(row);
+  },
+
+  savePerfil(
+    sessionId: string,
+    campos: Partial<Omit<Perfil, "sessionId">>,
+    modo: "replace" | "append" = "replace",
+  ): Perfil {
+    const actual = this.getPerfil(sessionId);
+    const next = {
+      apodo: mezclarCampo("apodo", actual.apodo, campos.apodo, modo),
+      temas: mezclarCampo("temas", actual.temas, campos.temas, modo),
+      evitar: mezclarCampo("evitar", actual.evitar, campos.evitar, modo),
+      familia: mezclarCampo("familia", actual.familia, campos.familia, modo),
+      notas: mezclarCampo("notas", actual.notas, campos.notas, modo),
+    };
+    db.prepare(`
+      INSERT INTO perfiles (session_id, apodo, temas, evitar, familia, notas, actualizado_en)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(session_id) DO UPDATE SET
+        apodo = excluded.apodo,
+        temas = excluded.temas,
+        evitar = excluded.evitar,
+        familia = excluded.familia,
+        notas = excluded.notas,
+        actualizado_en = datetime('now')
+    `).run(sessionId, next.apodo, next.temas, next.evitar, next.familia, next.notas);
+    return { sessionId, ...next };
+  },
+
+  getMemoria(sessionId: string): MemoriaLargoPlazo | undefined {
+    const row = db.prepare(
+      "SELECT session_id, resumen, hasta_orden FROM memoria_largo_plazo WHERE session_id = ?"
+    ).get(sessionId) as any;
+    if (!row) return undefined;
+    return { sessionId: row.session_id, resumen: row.resumen || "", hastaOrden: row.hasta_orden || 0 };
+  },
+
+  saveMemoria(sessionId: string, resumen: string, hastaOrden: number): void {
+    db.prepare(`
+      INSERT INTO memoria_largo_plazo (session_id, resumen, hasta_orden, actualizado_en)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(session_id) DO UPDATE SET
+        resumen = excluded.resumen,
+        hasta_orden = excluded.hasta_orden,
+        actualizado_en = datetime('now')
+    `).run(sessionId, resumen, hastaOrden);
   },
 
   // ── FCM tokens (APK) ─────────────────────────────────

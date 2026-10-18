@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "quetai",
+      "invocationName": "mi quetai",
       "intents": [
         {
           "name": "ConversarIntent",
@@ -120,6 +120,124 @@
             "borra nuestra charla",
             "nueva conversación",
             "nueva conversacion"
+          ]
+        },
+        {
+          "name": "ChismeIntent",
+          "slots": [],
+          "samples": [
+            "qué hay de chisme hoy",
+            "que hay de chisme hoy",
+            "qué hay de chisme",
+            "que hay de chisme",
+            "cuéntame el chisme",
+            "cuentame el chisme",
+            "que me cuente el chisme",
+            "qué hay de farándula",
+            "que hay de farandula",
+            "háblame de espectáculos",
+            "hablame de la farándula",
+            "hablame de la farandula"
+          ]
+        },
+        {
+          "name": "PoliticaIntent",
+          "slots": [],
+          "samples": [
+            "qué pasó en política",
+            "que paso en politica",
+            "háblame de política",
+            "hablame de politica",
+            "qué hay de política hoy",
+            "que hay de politica hoy",
+            "cuéntame la política del Perú",
+            "cuentame la politica del Peru",
+            "qué pasó en la política",
+            "que paso en la politica"
+          ]
+        },
+        {
+          "name": "NoticiasIntent",
+          "slots": [],
+          "samples": [
+            "cuáles son las noticias",
+            "cuales son las noticias",
+            "qué hay de nuevo hoy",
+            "que hay de nuevo hoy",
+            "cuéntame las noticias",
+            "cuentame las noticias",
+            "qué pasó hoy",
+            "que paso hoy",
+            "las noticias de hoy"
+          ]
+        },
+        {
+          "name": "CambiarApodoIntent",
+          "slots": [
+            {
+              "name": "apodo",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "dime {apodo}",
+            "llámame {apodo}",
+            "llamame {apodo}",
+            "quiero que me digas {apodo}",
+            "prefiero que me digas {apodo}",
+            "a partir de ahora dime {apodo}"
+          ]
+        },
+        {
+          "name": "GustosIntent",
+          "slots": [
+            {
+              "name": "tema",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "me gusta {tema}",
+            "me encanta {tema}",
+            "quiero hablar de {tema}",
+            "háblame de {tema}",
+            "hablame de {tema}",
+            "me gusta el {tema}"
+          ]
+        },
+        {
+          "name": "EvitarTemaIntent",
+          "slots": [
+            {
+              "name": "tema",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "no me hables de {tema}",
+            "no me hables del {tema}",
+            "no quiero hablar de {tema}",
+            "evita el tema {tema}",
+            "no saques el tema {tema}"
+          ]
+        },
+        {
+          "name": "FamiliaIntent",
+          "slots": [
+            {
+              "name": "parentesco",
+              "type": "PARENTESCO"
+            },
+            {
+              "name": "nombre",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "mi {parentesco} se llama {nombre}",
+            "mi {parentesco} es {nombre}",
+            "tengo un {parentesco} que se llama {nombre}",
+            "tengo una {parentesco} que se llama {nombre}"
           ]
         },
         {
@@ -259,6 +377,21 @@
             { "name": { "value": "vitaminas" } },
             { "name": { "value": "pastilla" } },
             { "name": { "value": "jarabe" } }
+          ]
+        },
+        {
+          "name": "PARENTESCO",
+          "values": [
+            { "name": { "value": "hijo" } },
+            { "name": { "value": "hija" } },
+            { "name": { "value": "nieto" } },
+            { "name": { "value": "nieta" } },
+            { "name": { "value": "esposo" } },
+            { "name": { "value": "esposa" } },
+            { "name": { "value": "hermano" } },
+            { "name": { "value": "hermana" } },
+            { "name": { "value": "yerno" } },
+            { "name": { "value": "nuera" } }
           ]
         }
       ]

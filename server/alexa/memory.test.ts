@@ -30,8 +30,22 @@ test("vincula un usuario de Alexa y recuerda medicamentos en su sesión", async 
   const web = storage.createUsuario("web-1", "Juan");
   assert.equal(web.nombre, "Juan");
 
+  const vacio = storage.getPerfil(creado.sessionId);
+  assert.equal(vacio.apodo, "");
+  storage.savePerfil(creado.sessionId, { apodo: "Queta", temas: "cocina" }, "replace");
+  storage.savePerfil(creado.sessionId, { temas: "chisme" }, "append");
+  storage.savePerfil(creado.sessionId, { temas: "Chisme" }, "append");
+  const perfil = storage.getPerfil(creado.sessionId);
+  assert.equal(perfil.apodo, "Queta");
+  assert.equal(perfil.temas, "cocina, chisme");
+
+  storage.saveMemoria(creado.sessionId, "Le gusta la cocina.", 4);
+  assert.equal(storage.getMemoria(creado.sessionId)?.hastaOrden, 4);
+
   storage.deleteUsuario(creado.sessionId);
   assert.equal(storage.getAlexaUsuario("amzn1.ask.account.ABC"), undefined);
   assert.equal(storage.getMensajes(creado.sessionId).length, 0);
+  assert.equal(storage.getPerfil(creado.sessionId).apodo, "");
+  assert.equal(storage.getMemoria(creado.sessionId), undefined);
   assert.ok(storage.getUsuario("web-1"));
 });

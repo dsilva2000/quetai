@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { test } from "node:test";
+
+const LOCALES = ["es-US", "es-ES", "es-MX"];
+const RAIZ = path.join(process.cwd(), "alexa/skill-package");
+
+function modelo(locale: string) {
+  return JSON.parse(readFileSync(path.join(RAIZ, "interactionModels/custom", `${locale}.json`), "utf8"));
+}
+
+test("la invocación es mi quetai en los tres idiomas", () => {
+  for (const locale of LOCALES) {
+    const lang = modelo(locale).interactionModel.languageModel;
+    assert.equal(lang.invocationName, "mi quetai", locale);
+    const nombres = lang.intents.map((intent: { name: string }) => intent.name);
+    for (const requerido of ["ChismeIntent", "PoliticaIntent", "NoticiasIntent", "CambiarApodoIntent", "GustosIntent", "EvitarTemaIntent", "FamiliaIntent"]) {
+      assert.ok(nombres.includes(requerido), `${locale} ${requerido}`);
+    }
+  }
+});
+
+test("ninguna muestra de SearchQuery es solo la ranura", () => {
+  for (const locale of LOCALES) {
+    const intents = modelo(locale).interactionModel.languageModel.intents as {
+      name: string;
+      slots?: { name: string; type: string }[];
+      samples?: string[];
+    }[];
+    for (const intent of intents) {
+      const busqueda = (intent.slots || []).filter((slot) => slot.type === "AMAZON.SearchQuery");
+      for (const sample of intent.samples || []) {
+        for (const slot of busqueda) {
+          const marca = `{${slot.name}}`;
+          assert.notEqual(sample.trim(), marca, `${locale} ${intent.name}`);
+          assert.ok(sample.replace(marca, "").trim().length > 0, `${locale} ${intent.name} ${sample}`);
+        }
+      }
+    }
+  }
+});
+
+test("las frases de ejemplo usan la invocación de dos palabras", () => {
+  const skill = JSON.parse(readFileSync(path.join(RAIZ, "skill.json"), "utf8"));
+  for (const locale of LOCALES) {
+    const frases = skill.manifest.publishingInformation.locales[locale].examplePhrases as string[];
+    assert.ok(frases.some((f) => f.includes("abre mi quetai")), locale);
+    assert.ok(frases.some((f) => f.includes("me cuente el chisme")), locale);
+    assert.ok(frases.some((f) => f.includes("qué pasó en política")), locale);
+    assert.equal(frases.some((f) => /abre quetai$/i.test(f)), false);
+  }
+});

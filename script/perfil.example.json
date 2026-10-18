@@ -1,0 +1,9 @@
+{
+  "alexaUserId": "PEGA_AQUI_EL_USER_ID_DE_ALEXA",
+  "nombre": "Tu familiar",
+  "apodo": "Como le dicen",
+  "temas": "chisme, cocina",
+  "evitar": "un tema que prefiere no tocar",
+  "familia": "nieta Rosa",
+  "notas": "Notas del cuidador. Este archivo es un ejemplo: no pongas datos reales dentro del repositorio."
+}

@@ -37,7 +37,7 @@ La sesión de un Echo es `alexa:` más el userId que envía Amazon. Así no se m
 1. Revisa el pull request y únelo a `master`.
 2. Render despliega solo la rama `master` (`render.yaml`, servicio `quetai`). El build **no compila** el servidor: solo hace `npm install` y recompila `better-sqlite3`. Lo que se ejecuta es `dist/index.cjs`, el bundle que está en git. Si ese archivo no entró en el merge, `/api/alexa` y `/privacidad` siguen devolviendo la página web.
 3. Espera a que el deploy quede en verde.
-4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v2"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, sigue corriendo el bundle viejo.
+4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en `alexa-v2`, sigue corriendo el bundle viejo. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
    - `https://quetai.onrender.com/api/health` → debe decir `"status": "ok"`.
    - `https://quetai.onrender.com/api/alexa` → debe decir `"servicio": "quetai-alexa"` y `"verificacion": "activa"`.
    - `https://quetai.onrender.com/privacidad`
@@ -54,7 +54,12 @@ En Render → servicio `quetai` → Environment. No las pongas en git.
 | `ALEXA_SKILL_ID` | El id `amzn1.ask.skill....` que verás al crear la skill | Sí, antes de invitar a nadie |
 | `ALEXA_SKIP_VERIFICATION` | `false` (o bórrala) | Sí |
 | `OPENAI_API_KEY` | La clave que ya usa el chat | Ya está |
-| `OPENAI_BASE_URL` | El host compatible (el modelo es `llama-3.3-70b-versatile`, el de Groq) | Ya está |
+| `OPENAI_BASE_URL` | El host compatible con la API de OpenAI (hoy, Groq) | Ya está |
+| `LLM_MODEL` | Modelo principal. Si lo dejas vacío, usa `llama-3.3-70b-versatile`. Pon aquí uno más fuerte si tu endpoint lo tiene | No |
+| `LLM_MODEL_FALLBACK` | Si el principal falla o no alcanza el tiempo de Alexa. Por defecto `llama-3.1-8b-instant` | No |
+| `ALEXA_LLM_TIMEOUT_MS` | Tope del modelo en Alexa, en milisegundos. Por defecto `5500` | No |
+| `ASSISTANT_NAME` | Cómo se presenta. Por defecto `Quetai`. La invocación de Alexa sigue siendo `mi quetai` | No |
+| `NEWS_ENABLED` | `true` para titulares de Google News. `false` los apaga | No |
 | `TZ` | `America/Lima` | Ya está en `render.yaml` |
 
 `ALEXA_SKIP_VERIFICATION=true` apaga la comprobación de firma. Sirve solo si estás depurando con `curl` en tu máquina. **No lo actives en Render.** El simulador de Alexa sí firma las peticiones, así que no hace falta apagar nada para probar.
@@ -77,10 +82,10 @@ En Fly.io, si despliegas ahí, configura los mismos secretos (`fly secrets set A
 ### Nombre de invocación
 
 1. Menú izquierdo → **Invocations** → **Skill Invocation Name**.
-2. Escribe `quetai` (minúsculas, una palabra).
-3. **Save**.
+2. Escribe `mi quetai` (minúsculas, dos palabras). Amazon rechazó el nombre de una sola palabra.
+3. **Save**. Repite el nombre en es-ES y es-MX. El JSON del repo ya trae `invocationName`: `mi quetai`.
 
-Amazon a veces rechaza un nombre de una sola palabra si no lo reconoce. Si el simulador no abre la skill, o certificación se queja, cámbialo en los tres idiomas a `mi quetai` y di «Alexa, abre mi quetai». Si lo cambias, actualiza también `invocationName` en los tres JSON de `alexa/skill-package/interactionModels/custom/`.
+Se abre con «Alexa, abre mi quetai».
 
 ### Modelo de interacción
 
@@ -101,6 +106,8 @@ El modelo incluye:
 - `DecirNombreIntent`: «me llamo María».
 - `RecordarMedicamentoIntent`: medicamento + hora.
 - `ListarMedicamentosIntent` y `OlvidarConversacionIntent`.
+- `ChismeIntent`, `PoliticaIntent` y `NoticiasIntent`: titulares, sin inventar.
+- `CambiarApodoIntent`, `GustosIntent`, `EvitarTemaIntent` y `FamiliaIntent`. Toda muestra con `AMAZON.SearchQuery` lleva palabras además de la ranura.
 - Ayuda, parar, cancelar, repetir, sí, no y `AMAZON.FallbackIntent`.
 
 ### Endpoint
@@ -131,7 +138,7 @@ Sin este permiso, Quetai igual **anota** el medicamento en su base. El aviso den
 3. Idioma del simulador: **Spanish (US)**.
 4. Escribe o habla, una frase por turno:
 
-   1. `abre quetai`  
+   1. `abre mi quetai`  
       Debe preguntar cómo te llamas, despacio.
    2. `me llamo María`  
       Debe saludar por el nombre.
@@ -183,9 +190,9 @@ Consola → **Distribution**, y completa:
 
 1. Nombre, descripción corta y descripción. Puedes copiarlas de `alexa/skill-package/skill.json`.
 2. Frases de ejemplo (tienen que existir en el modelo):
-   - Alexa, abre quetai
-   - Alexa, pídele a quetai que converse conmigo
-   - Alexa, pregúntale a quetai cuáles son mis medicamentos
+   - Alexa, abre mi quetai
+   - Alexa, pídele a mi quetai que me cuente el chisme
+   - Alexa, pregúntale a mi quetai qué pasó en política
 3. Categoría: **Lifestyle**. No la marques como skill de salud o médica.
 4. Ícono: 512×512 y 108×108. La consola no acepta el envío sin íconos.
 5. **Privacy Policy URL**: `https://quetai.onrender.com/privacidad`
@@ -246,6 +253,6 @@ El endpoint HTTPS déjalo como en la consola. Un `ask deploy` completo puede int
 | Responde pero no recuerda al día siguiente | El disco de Render (`quetai-data` en `/app/data`) tiene que seguir montado. Sin disco, SQLite se borra en cada deploy. |
 | No suena el recordatorio en el Echo | Permiso aceptado en la app de Alexa. La hora es de Lima (`TZ=America/Lima`). El plan gratuito de Render puede tardar en despertar; el aviso lo pronuncia Alexa, no el servidor, una vez creado. |
 | La respuesta tarda o sale el tropiezo | `OPENAI_API_KEY` y `OPENAI_BASE_URL`. El modelo es `llama-3.3-70b-versatile`. |
-| «quetai» no se entiende | Cambia la invocación a `mi quetai` (paso de arriba). |
+| No abre con «quetai» | La invocación es `mi quetai`. Di «Alexa, abre mi quetai». |
 
 Para borrar los datos de una persona: panel `https://quetai.onrender.com/#/admin`, o un correo a hola@quetai.tech. Borrar el usuario también borra su fila en `alexa_usuarios`.

@@ -36,6 +36,16 @@ services:
         sync: false
       - key: ALEXA_SKIP_VERIFICATION
         value: "false"
+      - key: ASSISTANT_NAME
+        value: Quetai
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_MODEL_FALLBACK
+        value: llama-3.1-8b-instant
+      - key: ALEXA_LLM_TIMEOUT_MS
+        value: "5500"
+      - key: NEWS_ENABLED
+        value: "true"
     disk:
       name: quetai-data
       mountPath: /app/data

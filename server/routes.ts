@@ -6,13 +6,11 @@ import { storage } from "./storage";
 import { registerAlexaRoutes } from "./alexa/route";
 import { healthPayload } from "./health";
 import { registerLegalRoutes } from "./legal";
-import { streamChat } from "./conversation";
+import { programarActualizacionMemoria, promptDeSesion, streamChat } from "./conversation";
 import {
   armarContexto,
-  buildSystemPrompt,
   detectarMedicamento,
   mensajeTropiezo,
-  resumirHistorial,
 } from "./prompt";
 
 // PIN de administrador — en producción usar variable de entorno
@@ -110,7 +108,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
 
     storage.addMensaje(sessionId, "user", mensaje.trim(), orden);
 
-    const systemPrompt = buildSystemPrompt(usuario.nombre, meds, resumirHistorial(historial));
+    const systemPrompt = await promptDeSesion(sessionId, usuario.nombre, meds, historial, "web");
     const conv = armarContexto(usuario.nombre, historial, mensaje.trim());
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -132,6 +130,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
 
       if (respuestaCompleta) {
         storage.addMensaje(sessionId, "assistant", respuestaCompleta, orden + 1);
+        programarActualizacionMemoria(sessionId);
         const med = detectarMedicamento(respuestaCompleta);
         if (med && med.nombre.length > 2) {
           const ya = meds.some((m) => m.nombre.toLowerCase() === med.nombre.toLowerCase());
@@ -389,7 +388,8 @@ export function registerRoutes(_httpServer: Server, app: Express) {
     const resultado = usuarios.map((u) => {
       const meds = storage.getMedicamentos(u.sessionId);
       const msgCount = storage.getMensajesCount(u.sessionId);
-      return { ...u, medicamentos: meds, mensajesCount: msgCount };
+      const perfil = storage.getPerfil(u.sessionId);
+      return { ...u, medicamentos: meds, mensajesCount: msgCount, perfil };
     });
     res.json(resultado);
   });
@@ -410,5 +410,19 @@ export function registerRoutes(_httpServer: Server, app: Express) {
   app.delete("/api/admin/usuarios/:sessionId/mensajes", adminAuth, (req, res) => {
     storage.clearMensajes(req.params.sessionId);
     res.json({ ok: true });
+  });
+
+  app.put("/api/admin/usuarios/:sessionId/perfil", adminAuth, (req, res) => {
+    const sessionId = req.params.sessionId;
+    if (!storage.getUsuario(sessionId)) return res.status(404).json({ error: "Sesión no encontrada" });
+    const body = req.body || {};
+    const perfil = storage.savePerfil(sessionId, {
+      apodo: String(body.apodo ?? ""),
+      temas: String(body.temas ?? ""),
+      evitar: String(body.evitar ?? ""),
+      familia: String(body.familia ?? ""),
+      notas: String(body.notas ?? ""),
+    }, "replace");
+    res.json(perfil);
   });
 }

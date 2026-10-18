@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -15,10 +16,14 @@ import { Link } from "wouter";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface Stats { totalUsuarios: number; totalMensajes: number; totalMeds: number; nuevosHoy: number; }
+interface PerfilAdmin {
+  apodo: string; temas: string; evitar: string; familia: string; notas: string;
+}
 interface UsuarioAdmin {
   id: number; sessionId: string; nombre: string; creadoEn: string;
   medicamentos: { id: number; nombre: string; horario: string }[];
   mensajesCount: number;
+  perfil?: PerfilAdmin;
 }
 interface MensajeAdmin { id: number; rol: string; contenido: string; orden: number; creadoEn: string; }
 
@@ -73,7 +78,7 @@ function LoginPanel({ onLogin }: { onLogin: (t: string) => void }) {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Administración</h1>
-            <p className="text-muted-foreground text-base mt-1">QUETAI v4.4</p>
+            <p className="text-muted-foreground text-base mt-1">Panel del cuidador</p>
           </div>
         </div>
 
@@ -250,7 +255,7 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
             </Link>
             <div>
               <h1 className="font-bold text-base leading-tight">Panel de Administración</h1>
-              <p className="text-xs text-muted-foreground">QUETAI v4.4</p>
+              <p className="text-xs text-muted-foreground">Panel del cuidador</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -328,7 +333,10 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
                     {u.nombre.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-semibold text-base">{u.nombre}</p>
+                    <p className="font-semibold text-base">
+                      {u.nombre}
+                      {u.perfil?.apodo ? <span className="text-muted-foreground font-normal"> · {u.perfil.apodo}</span> : null}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(u.creadoEn).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
                       {" · "}{u.mensajesCount} mensajes
@@ -365,6 +373,12 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
                       </div>
                     </div>
                   )}
+
+                  <PerfilForm
+                    usuario={u}
+                    headers={headers}
+                    onSaved={() => qc.invalidateQueries({ queryKey: ["/api/admin/usuarios"] })}
+                  />
 
                   {/* Session ID */}
                   <div>
@@ -417,9 +431,83 @@ function AdminPanel({ token, onLogout }: { token: string; onLogout: () => void }
           <span>es un servicio de</span>
           <a href="https://www.mancolab.com" target="_blank" rel="noopener noreferrer"
             className="font-semibold hover:text-foreground transition-colors">MancoLab</a>
-          <span>© 2026 · v4.4</span>
+          <span>© 2026</span>
         </p>
       </main>
+    </div>
+  );
+}
+
+function PerfilForm({
+  usuario,
+  headers,
+  onSaved,
+}: {
+  usuario: UsuarioAdmin;
+  headers: Record<string, string>;
+  onSaved: () => void;
+}) {
+  const vacio: PerfilAdmin = { apodo: "", temas: "", evitar: "", familia: "", notas: "" };
+  const inicial = usuario.perfil || vacio;
+  const [form, setForm] = useState<PerfilAdmin>(inicial);
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState("");
+
+  useEffect(() => {
+    setForm(usuario.perfil || vacio);
+  }, [usuario.sessionId, usuario.perfil?.apodo, usuario.perfil?.temas, usuario.perfil?.evitar, usuario.perfil?.familia, usuario.perfil?.notas]);
+
+  async function guardar() {
+    setGuardando(true);
+    setAviso("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/usuarios/${encodeURIComponent(usuario.sessionId)}/perfil`, {
+        method: "PUT",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error("no se pudo guardar");
+      setAviso("Perfil guardado");
+      onSaved();
+    } catch {
+      setAviso("No se pudo guardar");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const campo = (clave: keyof PerfilAdmin, etiqueta: string, ayuda: string, filas = 2) => (
+    <label className="block space-y-1">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{etiqueta}</span>
+      <Textarea
+        rows={filas}
+        value={form[clave]}
+        placeholder={ayuda}
+        onChange={(e) => setForm((prev) => ({ ...prev, [clave]: e.target.value }))}
+        className="text-sm"
+      />
+    </label>
+  );
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Perfil</p>
+      {campo("apodo", "Cómo le dicen", "El apodo, si quiere uno")}
+      {campo("temas", "Le gusta hablar de", "chisme, cocina, la familia")}
+      {campo("evitar", "No sacar estos temas", "Lo que prefiere no tocar")}
+      {campo("familia", "Familia", "nieta Rosa, hijo Luis")}
+      {campo("notas", "Notas del cuidador", "Algo que el asistente deba tener en cuenta", 3)}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={guardando}
+          className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm disabled:opacity-60"
+        >
+          {guardando ? "Guardando…" : "Guardar perfil"}
+        </button>
+        {aviso && <span className="text-sm text-muted-foreground">{aviso}</span>}
+      </div>
     </div>
   );
 }
