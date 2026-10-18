@@ -4,6 +4,7 @@ import webpush from "web-push";
 import { inicializarFCM } from "./fcm";
 import { storage } from "./storage";
 import { registerAlexaRoutes } from "./alexa/route";
+import { healthPayload } from "./health";
 import { registerLegalRoutes } from "./legal";
 import { streamChat } from "./conversation";
 import {
@@ -152,7 +153,7 @@ export function registerRoutes(_httpServer: Server, app: Express) {
 
   // ── Health check (Render keep-alive) ─────────────────────────────────────
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString(), tz: process.env.TZ || "UTC" });
+    res.json(healthPayload());
   });
 
   // ── Push: clave pública VAPID ────────────────────────────────────
