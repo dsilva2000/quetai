@@ -35,9 +35,9 @@ La sesión de un Echo es `alexa:` más el userId que envía Amazon. Así no se m
 ## 1. Publicar este código en Render
 
 1. Revisa el pull request y únelo a `master`.
-2. Render despliega solo la rama `master` (`render.yaml`, servicio `quetai`).
+2. Render despliega solo la rama `master` (`render.yaml`, servicio `quetai`). El build **no compila** el servidor: solo hace `npm install` y recompila `better-sqlite3`. Lo que se ejecuta es `dist/index.cjs`, el bundle que está en git. Si ese archivo no entró en el merge, `/api/alexa` y `/privacidad` siguen devolviendo la página web.
 3. Espera a que el deploy quede en verde.
-4. Abre en el navegador:
+4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v2"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, sigue corriendo el bundle viejo.
    - `https://quetai.onrender.com/api/health` → debe decir `"status": "ok"`.
    - `https://quetai.onrender.com/api/alexa` → debe decir `"servicio": "quetai-alexa"` y `"verificacion": "activa"`.
    - `https://quetai.onrender.com/privacidad`
