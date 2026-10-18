@@ -1,7 +1,7 @@
 import { modeloPrincipal } from "./llm";
 
 /** Marker baked into dist/index.cjs. /api/health must show this after a real deploy. */
-export const APP_RELEASE = "alexa-v3";
+export const APP_RELEASE = "alexa-v3.1";
 
 export function healthPayload(now = new Date(), env: NodeJS.ProcessEnv = process.env) {
   return {

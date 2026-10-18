@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   obtenerTitulares,
   parseRss,
+  prepararTitular,
+  recortarEnPalabra,
   resetNoticiasCache,
   respuestaDesdeTitulares,
   urlRss,
@@ -55,6 +57,49 @@ test("sin titulares no inventa, y la política no toma partido", () => {
   assert.match(dicho, /sin tomar partido/);
   assert.match(dicho, /presupuesto/);
   assert.equal(dicho.includes("partido aprista"), false);
+});
+
+test("limpia el titular, quita la radio y descarta redes", () => {
+  const basura = prepararTitular(
+    "LOÚLTIMO | Luto en la farándula peruana: falleció la actriz. 95.5 FM 6.1 señal digital abierta Movistar: 34 SD - - Facebook",
+  );
+  assert.equal(basura, null);
+  const instagram = prepararTitular("El debate busca mantener los principios del presupuesto - Instagram");
+  assert.equal(instagram, null);
+  const limpio = prepararTitular(
+    "LOÚLTIMO | Luto en la farándula peruana: falleció la actriz. 95.5 FM 6.1 señal digital abierta Movistar: 34 SD - RPP",
+  );
+  assert.ok(limpio);
+  assert.match(limpio!.titulo, /^Luto en la farándula peruana: falleció la actriz/);
+  assert.equal(limpio!.medio, "RPP");
+  assert.equal(/95\.5|FM|Movistar|SD|LOÚLTIMO|\|/.test(limpio!.titulo), false);
+  const largo = "palabra ".repeat(40).trim();
+  const corto = recortarEnPalabra(largo, 80);
+  assert.ok(corto.length <= 80);
+  assert.equal(corto.endsWith("palabr"), false);
+  assert.ok(largo.startsWith(corto));
+});
+
+test("el rss usa solo el título y habla como un amigo", () => {
+  const xml = `<?xml version="1.0"?><rss><channel>
+    <item><title>Cantante peruana anuncia una gira por Lima - RPP</title><description>NO LEER 95.5 FM Facebook</description></item>
+    <item><title>Otra nota de farándula que no entra - YouTube</title><description>desc</description></item>
+    <item><title>Un segundo chisme corto del espectáculo - El Comercio</title></item>
+    <item><title>Un tercer chisme que no debe leerse en voz - La República</title></item>
+  </channel></rss>`;
+  const items = parseRss(xml, "farandula");
+  assert.equal(items.length, 3);
+  assert.equal(items[0].titulo, "Cantante peruana anuncia una gira por Lima");
+  assert.equal(items[0].medio, "RPP");
+  assert.equal(JSON.stringify(items).includes("NO LEER"), false);
+  assert.equal(JSON.stringify(items).includes("YouTube"), false);
+  const dicho = respuestaDesdeTitulares("farandula", items, "Queta");
+  assert.match(dicho, /¿te enteraste\? Dicen que/i);
+  assert.match(dicho, /Según RPP/);
+  assert.match(dicho, /Según El Comercio/);
+  assert.match(dicho, /¿Quieres que te cuente más\?/);
+  assert.equal(dicho.includes("tercer chisme"), false);
+  assert.equal(dicho.includes("NO LEER"), false);
 });
 
 test("NEWS_ENABLED=false no consulta la red", async () => {

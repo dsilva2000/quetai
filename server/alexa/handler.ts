@@ -85,15 +85,16 @@ function saludo(usuario: { nombre: string; apodo?: string }, now: Date, timeZone
 
 function limpiarApodo(raw: string): string {
   const limpio = raw.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\- ]/g, " ").replace(/\s+/g, " ").trim();
-  return limpio.split(" ").slice(0, 2).join(" ").slice(0, 24);
+  const corto = limpio.split(" ").slice(0, 2).join(" ").slice(0, 24);
+  return corto
+    .split(" ")
+    .filter(Boolean)
+    .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function limpiarTema(raw: string): string {
-  return raw
-    .replace(/^(el|la|los|las|un|una|de|del)\s+/i, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 60);
+  return raw.replace(/\s+/g, " ").trim().replace(/[.?!]+$/g, "").slice(0, 80);
 }
 
 function hablar(

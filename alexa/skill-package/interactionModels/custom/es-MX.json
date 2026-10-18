@@ -176,15 +176,18 @@
           "slots": [
             {
               "name": "apodo",
-              "type": "AMAZON.SearchQuery"
+              "type": "APODO"
             }
           ],
           "samples": [
+            "di me {apodo}",
             "dime {apodo}",
             "llámame {apodo}",
             "llamame {apodo}",
             "quiero que me digas {apodo}",
             "prefiero que me digas {apodo}",
+            "me dicen {apodo}",
+            "mi apodo es {apodo}",
             "a partir de ahora dime {apodo}"
           ]
         },
@@ -202,7 +205,7 @@
             "quiero hablar de {tema}",
             "háblame de {tema}",
             "hablame de {tema}",
-            "me gusta el {tema}"
+            "me gusta hablar de {tema}"
           ]
         },
         {
@@ -357,7 +360,23 @@
             { "name": { "value": "Daniel" } },
             { "name": { "value": "Sofía" } },
             { "name": { "value": "Antonio" } },
-            { "name": { "value": "Juana" } }
+            { "name": { "value": "Juana" } },
+            { "name": { "value": "Enriqueta" } }
+          ]
+        },
+        {
+          "name": "APODO",
+          "values": [
+            { "name": { "value": "Queta", "synonyms": ["queta", "keta"] } },
+            { "name": { "value": "Quetita" } },
+            { "name": { "value": "Enriqueta" } },
+            { "name": { "value": "Queti" } },
+            { "name": { "value": "Carmencita" } },
+            { "name": { "value": "Rosita" } },
+            { "name": { "value": "Luchito" } },
+            { "name": { "value": "Marita" } },
+            { "name": { "value": "Tere" } },
+            { "name": { "value": "Conchita" } }
           ]
         },
         {
