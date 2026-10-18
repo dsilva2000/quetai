@@ -1,26 +1,44 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { olvidarMensajes, olvidarSesion, olvidarTodo, recordar } from "./cache-peticion";
 import { directorioPersistente, leerMontajes, resolverDirectorioDatos } from "./datos";
+import { mezclarCampo, perfilVacio } from "./perfil-merge";
+import { crearAlmacenSupabase } from "./supabase-store";
+import { storeActivo } from "./store-kind";
 
 // En Render el disco persistente va en DATA_DIR (/app/data). Sin esa variable
 // el archivo cae en el árbol del repo, que se borra en cada deploy.
-const DATA_DIR = resolverDirectorioDatos(process.env, process.cwd());
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const DB_PATH = path.join(DATA_DIR, "quetai.db");
-const montado = directorioPersistente(DATA_DIR, leerMontajes());
+const MODO = storeActivo(process.env);
+const urlSupabase = (process.env.SUPABASE_URL || "").trim();
+const keySupabase = (process.env.SUPABASE_SERVICE_KEY || "").trim();
 console.log(JSON.stringify({
-  evento: "db.ruta",
-  dir: DATA_DIR,
-  archivo: "quetai.db",
-  montado,
-  aviso: montado ? undefined : "directorio efimero: un deploy o el spin-down del plan free borra los usuarios",
+  evento: "db.store",
+  store: MODO,
+  aviso: (urlSupabase && !keySupabase) || (!urlSupabase && keySupabase)
+    ? "falta SUPABASE_URL o SUPABASE_SERVICE_KEY; se usa sqlite"
+    : undefined,
 }));
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
 
+const DATA_DIR = resolverDirectorioDatos(process.env, process.cwd());
+let db: Database.Database | null = null;
+if (MODO === "sqlite") {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  const DB_PATH = path.join(DATA_DIR, "quetai.db");
+  const montado = directorioPersistente(DATA_DIR, leerMontajes());
+  console.log(JSON.stringify({
+    evento: "db.ruta",
+    dir: DATA_DIR,
+    archivo: "quetai.db",
+    montado,
+    aviso: montado ? undefined : "directorio efimero: un deploy o el spin-down del plan free borra los usuarios",
+  }));
+  db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+}
+
+if (db) {
 // ── Migración segura: agregar tablas nuevas si no existen ──────────────────
 const tablas = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((r: any) => r.name);
 // Migración: agregar columna telefono si no existe
@@ -140,6 +158,7 @@ db.exec(`
     FOREIGN KEY (session_id) REFERENCES usuarios(session_id)
   );
 `);
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export interface Usuario {
@@ -181,10 +200,6 @@ export interface MemoriaLargoPlazo {
   hastaOrden: number;
 }
 
-function perfilVacio(sessionId: string): Perfil {
-  return { sessionId, apodo: "", temas: "", evitar: "", familia: "", notas: "" };
-}
-
 function rowToPerfil(row: any): Perfil {
   return {
     sessionId: row.session_id,
@@ -194,37 +209,6 @@ function rowToPerfil(row: any): Perfil {
     familia: row.familia || "",
     notas: row.notas || "",
   };
-}
-
-function unirLista(actual: string, extra: string): string {
-  const piezas = `${actual},${extra}`.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
-  const vistos = new Set<string>();
-  const salida: string[] = [];
-  for (const pieza of piezas) {
-    const clave = pieza.toLowerCase();
-    if (vistos.has(clave)) continue;
-    vistos.add(clave);
-    salida.push(pieza);
-  }
-  return salida.join(", ");
-}
-
-function mezclarCampo(
-  clave: "apodo" | "temas" | "evitar" | "familia" | "notas",
-  actual: string,
-  entrante: string | undefined,
-  modo: "replace" | "append",
-): string {
-  if (entrante === undefined) return actual;
-  const valor = String(entrante).trim();
-  if (modo !== "append" || clave === "apodo") return valor;
-  if (!valor) return actual;
-  if (clave === "notas") {
-    if (!actual) return valor;
-    if (actual.toLowerCase().includes(valor.toLowerCase())) return actual;
-    return `${actual}. ${valor}`;
-  }
-  return unirLista(actual, valor);
 }
 
 // ─── Storage API ───────────────────────────────────────────────────────────────
@@ -239,88 +223,105 @@ function rowToMensaje(row: any): Mensaje {
   return { id: row.id, sessionId: row.session_id, rol: row.rol, contenido: row.contenido, orden: row.orden, creadoEn: row.creado_en };
 }
 
-export const storage = {
-  // ── Usuarios ────────────────────────────────────────────────────
-  getUsuario(sessionId: string): Usuario | undefined {
-    const row = db.prepare("SELECT * FROM usuarios WHERE session_id = ?").get(sessionId) as any;
-    return row ? rowToUsuario(row) : undefined;
+const sqliteStorage = {
+  async getUsuario(sessionId: string): Promise<Usuario | undefined> {
+    return recordar(`usuario:${sessionId}`, async () => {
+      const row = db!.prepare("SELECT * FROM usuarios WHERE session_id = ?").get(sessionId) as any;
+      return row ? rowToUsuario(row) : undefined;
+    });
   },
 
-  createUsuario(sessionId: string, nombre: string): Usuario {
-    const info = db.prepare("INSERT INTO usuarios (session_id, nombre) VALUES (?, ?)").run(sessionId, nombre);
-    return rowToUsuario(db.prepare("SELECT * FROM usuarios WHERE id = ?").get(info.lastInsertRowid) as any);
+  async createUsuario(sessionId: string, nombre: string): Promise<Usuario> {
+    const info = db!.prepare("INSERT INTO usuarios (session_id, nombre) VALUES (?, ?)").run(sessionId, nombre);
+    olvidarSesion(sessionId);
+    return rowToUsuario(db!.prepare("SELECT * FROM usuarios WHERE id = ?").get(info.lastInsertRowid) as any);
   },
 
-  getAllUsuarios(): Usuario[] {
-    return (db.prepare("SELECT * FROM usuarios ORDER BY creado_en DESC").all() as any[]).map(rowToUsuario);
+  async getAllUsuarios(): Promise<Usuario[]> {
+    return (db!.prepare("SELECT * FROM usuarios ORDER BY creado_en DESC").all() as any[]).map(rowToUsuario);
   },
 
-  deleteUsuario(sessionId: string): void {
-    db.prepare("DELETE FROM alexa_usuarios WHERE session_id = ?").run(sessionId);
-    db.prepare("DELETE FROM perfiles WHERE session_id = ?").run(sessionId);
-    db.prepare("DELETE FROM memoria_largo_plazo WHERE session_id = ?").run(sessionId);
-    db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
-    db.prepare("DELETE FROM medicamentos WHERE session_id = ?").run(sessionId);
-    db.prepare("DELETE FROM usuarios WHERE session_id = ?").run(sessionId);
+  async deleteUsuario(sessionId: string): Promise<void> {
+    const sqlite = db!;
+    sqlite.prepare("DELETE FROM alexa_usuarios WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM perfiles WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM memoria_largo_plazo WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM medicamentos WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM fcm_tokens WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM push_suscripciones WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM recordatorios_enviados WHERE session_id = ?").run(sessionId);
+    sqlite.prepare("DELETE FROM usuarios WHERE session_id = ?").run(sessionId);
+    olvidarSesion(sessionId);
   },
 
-  // ── Medicamentos ────────────────────────────────────────────────
-  getMedicamentos(sessionId: string): Medicamento[] {
-    return (db.prepare("SELECT * FROM medicamentos WHERE session_id = ? AND activo = 1").all(sessionId) as any[]).map(rowToMed);
+  async getMedicamentos(sessionId: string): Promise<Medicamento[]> {
+    return recordar(`meds:${sessionId}`, async () => {
+      return (db!.prepare("SELECT * FROM medicamentos WHERE session_id = ? AND activo = 1").all(sessionId) as any[]).map(rowToMed);
+    });
   },
 
-  addMedicamento(sessionId: string, nombre: string, horario: string): Medicamento {
-    const info = db.prepare("INSERT INTO medicamentos (session_id, nombre, horario) VALUES (?, ?, ?)").run(sessionId, nombre, horario);
-    return rowToMed(db.prepare("SELECT * FROM medicamentos WHERE id = ?").get(info.lastInsertRowid) as any);
+  async addMedicamento(sessionId: string, nombre: string, horario: string): Promise<Medicamento> {
+    const info = db!.prepare("INSERT INTO medicamentos (session_id, nombre, horario) VALUES (?, ?, ?)").run(sessionId, nombre, horario);
+    olvidarSesion(sessionId);
+    return rowToMed(db!.prepare("SELECT * FROM medicamentos WHERE id = ?").get(info.lastInsertRowid) as any);
   },
 
-  upsertMedicamento(sessionId: string, nombre: string, horario: string): { created: boolean; medicamento: Medicamento } {
-    const existing = db.prepare(
+  async upsertMedicamento(sessionId: string, nombre: string, horario: string): Promise<{ created: boolean; medicamento: Medicamento }> {
+    const existing = db!.prepare(
       "SELECT * FROM medicamentos WHERE session_id = ? AND lower(nombre) = lower(?) AND activo = 1"
     ).get(sessionId, nombre) as any;
     if (existing) {
-      db.prepare("UPDATE medicamentos SET horario = ? WHERE id = ?").run(horario, existing.id);
+      db!.prepare("UPDATE medicamentos SET horario = ? WHERE id = ?").run(horario, existing.id);
+      olvidarSesion(sessionId);
       return { created: false, medicamento: rowToMed({ ...existing, horario }) };
     }
-    return { created: true, medicamento: this.addMedicamento(sessionId, nombre, horario) };
+    return { created: true, medicamento: await this.addMedicamento(sessionId, nombre, horario) };
   },
 
-  deleteMedicamento(id: number): void {
-    db.prepare("UPDATE medicamentos SET activo = 0 WHERE id = ?").run(id);
+  async deleteMedicamento(id: number): Promise<void> {
+    db!.prepare("UPDATE medicamentos SET activo = 0 WHERE id = ?").run(id);
+    olvidarTodo();
   },
 
-  // ── Mensajes ────────────────────────────────────────────────────
-  getMensajes(sessionId: string, limit = 200): Mensaje[] {
-    return (db.prepare("SELECT * FROM mensajes WHERE session_id = ? ORDER BY orden ASC LIMIT ?").all(sessionId, limit) as any[]).map(rowToMensaje);
+  async getMensajes(sessionId: string, limit = 200): Promise<Mensaje[]> {
+    return recordar(`mensajes:${sessionId}:${limit}`, async () => {
+      return (db!.prepare("SELECT * FROM mensajes WHERE session_id = ? ORDER BY orden ASC LIMIT ?").all(sessionId, limit) as any[]).map(rowToMensaje);
+    });
   },
 
-  getMensajesCount(sessionId: string): number {
-    const row = db.prepare("SELECT COUNT(*) as cnt FROM mensajes WHERE session_id = ?").get(sessionId) as any;
-    return row?.cnt ?? 0;
+  async getMensajesCount(sessionId: string): Promise<number> {
+    return recordar(`mensajesCount:${sessionId}`, async () => {
+      const row = db!.prepare("SELECT COUNT(*) as cnt FROM mensajes WHERE session_id = ?").get(sessionId) as any;
+      return row?.cnt ?? 0;
+    });
   },
 
-  addMensaje(sessionId: string, rol: string, contenido: string, orden: number): Mensaje {
-    const info = db.prepare("INSERT INTO mensajes (session_id, rol, contenido, orden) VALUES (?, ?, ?, ?)").run(sessionId, rol, contenido, orden);
-    return rowToMensaje(db.prepare("SELECT * FROM mensajes WHERE id = ?").get(info.lastInsertRowid) as any);
+  async addMensaje(sessionId: string, rol: string, contenido: string, orden: number): Promise<Mensaje> {
+    const info = db!.prepare("INSERT INTO mensajes (session_id, rol, contenido, orden) VALUES (?, ?, ?, ?)").run(sessionId, rol, contenido, orden);
+    olvidarMensajes(sessionId);
+    return rowToMensaje(db!.prepare("SELECT * FROM mensajes WHERE id = ?").get(info.lastInsertRowid) as any);
   },
 
-  clearMensajes(sessionId: string): void {
-    db.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
+  async clearMensajes(sessionId: string): Promise<void> {
+    db!.prepare("DELETE FROM mensajes WHERE session_id = ?").run(sessionId);
+    olvidarMensajes(sessionId);
   },
 
-  // ── Perfil por sesión (cuidador o voz). Vacío hasta que alguien lo llene. ──
-  getPerfil(sessionId: string): Perfil {
-    const row = db.prepare("SELECT * FROM perfiles WHERE session_id = ?").get(sessionId) as any;
-    if (!row) return perfilVacio(sessionId);
-    return rowToPerfil(row);
+  async getPerfil(sessionId: string): Promise<Perfil> {
+    return recordar(`perfil:${sessionId}`, async () => {
+      const row = db!.prepare("SELECT * FROM perfiles WHERE session_id = ?").get(sessionId) as any;
+      if (!row) return perfilVacio(sessionId);
+      return rowToPerfil(row);
+    });
   },
 
-  savePerfil(
+  async savePerfil(
     sessionId: string,
     campos: Partial<Omit<Perfil, "sessionId">>,
     modo: "replace" | "append" = "replace",
-  ): Perfil {
-    const actual = this.getPerfil(sessionId);
+  ): Promise<Perfil> {
+    const actual = await this.getPerfil(sessionId);
     const next = {
       apodo: mezclarCampo("apodo", actual.apodo, campos.apodo, modo),
       temas: mezclarCampo("temas", actual.temas, campos.temas, modo),
@@ -328,7 +329,7 @@ export const storage = {
       familia: mezclarCampo("familia", actual.familia, campos.familia, modo),
       notas: mezclarCampo("notas", actual.notas, campos.notas, modo),
     };
-    db.prepare(`
+    db!.prepare(`
       INSERT INTO perfiles (session_id, apodo, temas, evitar, familia, notas, actualizado_en)
       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(session_id) DO UPDATE SET
@@ -339,19 +340,22 @@ export const storage = {
         notas = excluded.notas,
         actualizado_en = datetime('now')
     `).run(sessionId, next.apodo, next.temas, next.evitar, next.familia, next.notas);
+    olvidarSesion(sessionId);
     return { sessionId, ...next };
   },
 
-  getMemoria(sessionId: string): MemoriaLargoPlazo | undefined {
-    const row = db.prepare(
-      "SELECT session_id, resumen, hasta_orden FROM memoria_largo_plazo WHERE session_id = ?"
-    ).get(sessionId) as any;
-    if (!row) return undefined;
-    return { sessionId: row.session_id, resumen: row.resumen || "", hastaOrden: row.hasta_orden || 0 };
+  async getMemoria(sessionId: string): Promise<MemoriaLargoPlazo | undefined> {
+    return recordar(`memoria:${sessionId}`, async () => {
+      const row = db!.prepare(
+        "SELECT session_id, resumen, hasta_orden FROM memoria_largo_plazo WHERE session_id = ?"
+      ).get(sessionId) as any;
+      if (!row) return undefined;
+      return { sessionId: row.session_id, resumen: row.resumen || "", hastaOrden: row.hasta_orden || 0 };
+    });
   },
 
-  saveMemoria(sessionId: string, resumen: string, hastaOrden: number): void {
-    db.prepare(`
+  async saveMemoria(sessionId: string, resumen: string, hastaOrden: number): Promise<void> {
+    db!.prepare(`
       INSERT INTO memoria_largo_plazo (session_id, resumen, hasta_orden, actualizado_en)
       VALUES (?, ?, ?, datetime('now'))
       ON CONFLICT(session_id) DO UPDATE SET
@@ -359,37 +363,43 @@ export const storage = {
         hasta_orden = excluded.hasta_orden,
         actualizado_en = datetime('now')
     `).run(sessionId, resumen, hastaOrden);
+    olvidarSesion(sessionId);
   },
 
-  // ── FCM tokens (APK) ─────────────────────────────────
-  saveFcmToken(sessionId: string, token: string): void {
-    db.prepare(`
+  async saveFcmToken(sessionId: string, token: string): Promise<void> {
+    db!.prepare(`
       INSERT INTO fcm_tokens (session_id, token)
       VALUES (?, ?)
       ON CONFLICT(token) DO UPDATE SET session_id=excluded.session_id
     `).run(sessionId, token);
+    olvidarSesion(sessionId);
   },
 
-  deleteFcmToken(token: string): void {
-    db.prepare("DELETE FROM fcm_tokens WHERE token = ?").run(token);
+  async deleteFcmToken(token: string): Promise<void> {
+    db!.prepare("DELETE FROM fcm_tokens WHERE token = ?").run(token);
+    olvidarTodo();
   },
 
-  getFcmTokensBySession(sessionId: string): string[] {
-    return (db.prepare("SELECT token FROM fcm_tokens WHERE session_id = ?").all(sessionId) as any[]).map(r => r.token);
+  async getFcmTokensBySession(sessionId: string): Promise<string[]> {
+    return recordar(`fcm:${sessionId}`, async () => {
+      return (db!.prepare("SELECT token FROM fcm_tokens WHERE session_id = ?").all(sessionId) as any[]).map(r => r.token);
+    });
   },
 
-  savePhone(sessionId: string, telefono: string): void {
-    db.prepare("UPDATE usuarios SET telefono = ? WHERE session_id = ?").run(telefono, sessionId);
+  async savePhone(sessionId: string, telefono: string): Promise<void> {
+    db!.prepare("UPDATE usuarios SET telefono = ? WHERE session_id = ?").run(telefono, sessionId);
+    olvidarSesion(sessionId);
   },
 
-  getPhone(sessionId: string): string | null {
-    const row = db.prepare("SELECT telefono FROM usuarios WHERE session_id = ?").get(sessionId) as any;
-    return row?.telefono || null;
+  async getPhone(sessionId: string): Promise<string | null> {
+    return recordar(`phone:${sessionId}`, async () => {
+      const row = db!.prepare("SELECT telefono FROM usuarios WHERE session_id = ?").get(sessionId) as any;
+      return row?.telefono || null;
+    });
   },
 
-  // Para el cron: medicamentos con teléfono (WhatsApp fallback)
-  getMedicamentosConTelefono(): { sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; telefono: string }[] {
-    return (db.prepare(`
+  async getMedicamentosConTelefono(): Promise<{ sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; telefono: string }[]> {
+    return (db!.prepare(`
       SELECT m.session_id as sessionId, m.id as medId, m.nombre, m.horario,
              u.nombre as usuarioNombre, u.telefono
       FROM medicamentos m
@@ -398,9 +408,8 @@ export const storage = {
     `).all() as any[]);
   },
 
-  // Para el cron: obtener todos los medicamentos con sus FCM tokens
-  getMedicamentosConFCM(): { sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; token: string }[] {
-    return (db.prepare(`
+  async getMedicamentosConFCM(): Promise<{ sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; token: string }[]> {
+    return (db!.prepare(`
       SELECT m.session_id as sessionId, m.id as medId, m.nombre, m.horario,
              u.nombre as usuarioNombre, f.token
       FROM medicamentos m
@@ -410,26 +419,28 @@ export const storage = {
     `).all() as any[]);
   },
 
-  // ── Push suscripciones ──────────────────────────────
-  savePushSuscripcion(sessionId: string, endpoint: string, p256dh: string, auth: string): void {
-    db.prepare(`
+  async savePushSuscripcion(sessionId: string, endpoint: string, p256dh: string, auth: string): Promise<void> {
+    db!.prepare(`
       INSERT INTO push_suscripciones (session_id, endpoint, p256dh, auth)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(endpoint) DO UPDATE SET session_id=excluded.session_id, p256dh=excluded.p256dh, auth=excluded.auth
     `).run(sessionId, endpoint, p256dh, auth);
+    olvidarSesion(sessionId);
   },
 
-  deletePushSuscripcion(endpoint: string): void {
-    db.prepare("DELETE FROM push_suscripciones WHERE endpoint = ?").run(endpoint);
+  async deletePushSuscripcion(endpoint: string): Promise<void> {
+    db!.prepare("DELETE FROM push_suscripciones WHERE endpoint = ?").run(endpoint);
+    olvidarTodo();
   },
 
-  getPushSuscripcionesBySession(sessionId: string): { endpoint: string; p256dh: string; auth: string }[] {
-    return (db.prepare("SELECT endpoint, p256dh, auth FROM push_suscripciones WHERE session_id = ?").all(sessionId) as any[]);
+  async getPushSuscripcionesBySession(sessionId: string): Promise<{ endpoint: string; p256dh: string; auth: string }[]> {
+    return recordar(`push:${sessionId}`, async () => {
+      return (db!.prepare("SELECT endpoint, p256dh, auth FROM push_suscripciones WHERE session_id = ?").all(sessionId) as any[]);
+    });
   },
 
-  // Para el cron: obtener todos los medicamentos activos con sus suscripciones
-  getMedicamentosParaRecordatorio(): { sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; endpoint: string; p256dh: string; auth: string }[] {
-    return (db.prepare(`
+  async getMedicamentosParaRecordatorio(): Promise<{ sessionId: string; medId: number; nombre: string; horario: string; usuarioNombre: string; endpoint: string; p256dh: string; auth: string }[]> {
+    return (db!.prepare(`
       SELECT m.session_id as sessionId, m.id as medId, m.nombre, m.horario,
              u.nombre as usuarioNombre, p.endpoint, p.p256dh, p.auth
       FROM medicamentos m
@@ -439,75 +450,83 @@ export const storage = {
     `).all() as any[]);
   },
 
-  yaSeEnvioRecordatorio(sessionId: string, medId: number, fechaHora: string): boolean {
-    const row = db.prepare(`
+  async yaSeEnvioRecordatorio(sessionId: string, medId: number, fechaHora: string): Promise<boolean> {
+    const row = db!.prepare(`
       SELECT id FROM recordatorios_enviados
       WHERE session_id = ? AND med_id = ? AND strftime('%Y-%m-%d %H:%M', fecha_hora) = ?
     `).get(sessionId, medId, fechaHora) as any;
     return !!row;
   },
 
-  registrarRecordatorioEnviado(sessionId: string, medId: number): void {
-    db.prepare("INSERT INTO recordatorios_enviados (session_id, med_id) VALUES (?, ?)").run(sessionId, medId);
+  async registrarRecordatorioEnviado(sessionId: string, medId: number): Promise<void> {
+    db!.prepare("INSERT INTO recordatorios_enviados (session_id, med_id) VALUES (?, ?)").run(sessionId, medId);
   },
 
-  // ── Alexa: un userId de Amazon → la misma sesión Quetai ─────────
-  getAlexaUsuario(alexaUserId: string): { alexaUserId: string; sessionId: string; nombre: string; locale: string | null } | undefined {
-    const row = db.prepare(`
-      SELECT a.alexa_user_id as alexaUserId, a.session_id as sessionId, a.locale as locale, u.nombre as nombre
-      FROM alexa_usuarios a
-      JOIN usuarios u ON u.session_id = a.session_id
-      WHERE a.alexa_user_id = ?
-    `).get(alexaUserId) as any;
-    return row || undefined;
+  async getAlexaUsuario(alexaUserId: string): Promise<{ alexaUserId: string; sessionId: string; nombre: string; locale: string | null } | undefined> {
+    return recordar(`alexa:${alexaUserId}`, async () => {
+      const row = db!.prepare(`
+        SELECT a.alexa_user_id as alexaUserId, a.session_id as sessionId, a.locale as locale, u.nombre as nombre
+        FROM alexa_usuarios a
+        JOIN usuarios u ON u.session_id = a.session_id
+        WHERE a.alexa_user_id = ?
+      `).get(alexaUserId) as any;
+      return row || undefined;
+    });
   },
 
-  registerAlexaUsuario(alexaUserId: string, nombre: string, locale: string): { sessionId: string; nombre: string } {
-    const ya = this.getAlexaUsuario(alexaUserId);
+  async registerAlexaUsuario(alexaUserId: string, nombre: string, locale: string): Promise<{ sessionId: string; nombre: string }> {
+    const ya = await this.getAlexaUsuario(alexaUserId);
     if (ya) return { sessionId: ya.sessionId, nombre: ya.nombre };
 
     const sessionId = `alexa:${alexaUserId}`;
-    const crear = db.transaction(() => {
-      const existe = db.prepare("SELECT id FROM usuarios WHERE session_id = ?").get(sessionId);
+    const crear = db!.transaction(() => {
+      const existe = db!.prepare("SELECT id FROM usuarios WHERE session_id = ?").get(sessionId);
       if (!existe) {
-        db.prepare("INSERT INTO usuarios (session_id, nombre) VALUES (?, ?)").run(sessionId, nombre);
+        db!.prepare("INSERT INTO usuarios (session_id, nombre) VALUES (?, ?)").run(sessionId, nombre);
       }
-      db.prepare(
+      db!.prepare(
         "INSERT INTO alexa_usuarios (alexa_user_id, session_id, locale) VALUES (?, ?, ?)"
       ).run(alexaUserId, sessionId, locale || null);
     });
     try {
       crear();
     } catch (err) {
-      const otraVez = this.getAlexaUsuario(alexaUserId);
+      olvidarSesion(sessionId);
+      olvidarSesion(alexaUserId);
+      const otraVez = await this.getAlexaUsuario(alexaUserId);
       if (otraVez) return { sessionId: otraVez.sessionId, nombre: otraVez.nombre };
       throw err;
     }
+    olvidarSesion(sessionId);
+    olvidarSesion(alexaUserId);
     return { sessionId, nombre };
   },
 
-  setNombreUsuario(sessionId: string, nombre: string): void {
-    db.prepare("UPDATE usuarios SET nombre = ? WHERE session_id = ?").run(nombre, sessionId);
+  async setNombreUsuario(sessionId: string, nombre: string): Promise<void> {
+    db!.prepare("UPDATE usuarios SET nombre = ? WHERE session_id = ?").run(nombre, sessionId);
+    olvidarSesion(sessionId);
   },
 
-  touchAlexaUsuario(alexaUserId: string, locale?: string): void {
+  async touchAlexaUsuario(alexaUserId: string, locale?: string): Promise<void> {
     if (locale) {
-      db.prepare(
+      db!.prepare(
         "UPDATE alexa_usuarios SET ultimo_acceso = datetime('now'), locale = ? WHERE alexa_user_id = ?"
       ).run(locale, alexaUserId);
     } else {
-      db.prepare(
+      db!.prepare(
         "UPDATE alexa_usuarios SET ultimo_acceso = datetime('now') WHERE alexa_user_id = ?"
       ).run(alexaUserId);
     }
+    olvidarSesion(alexaUserId);
   },
 
-  // ── Admin stats ─────────────────────────────────────────────────
-  getStats() {
-    const totalUsuarios = (db.prepare("SELECT COUNT(*) as cnt FROM usuarios").get() as any).cnt;
-    const totalMensajes = (db.prepare("SELECT COUNT(*) as cnt FROM mensajes").get() as any).cnt;
-    const totalMeds = (db.prepare("SELECT COUNT(*) as cnt FROM medicamentos WHERE activo = 1").get() as any).cnt;
-    const hoy = (db.prepare("SELECT COUNT(*) as cnt FROM usuarios WHERE date(creado_en) = date('now')").get() as any).cnt;
+  async getStats() {
+    const totalUsuarios = (db!.prepare("SELECT COUNT(*) as cnt FROM usuarios").get() as any).cnt;
+    const totalMensajes = (db!.prepare("SELECT COUNT(*) as cnt FROM mensajes").get() as any).cnt;
+    const totalMeds = (db!.prepare("SELECT COUNT(*) as cnt FROM medicamentos WHERE activo = 1").get() as any).cnt;
+    const hoy = (db!.prepare("SELECT COUNT(*) as cnt FROM usuarios WHERE date(creado_en) = date('now')").get() as any).cnt;
     return { totalUsuarios, totalMensajes, totalMeds, nuevosHoy: hoy };
   },
 };
+
+export const storage = MODO === "supabase" ? crearAlmacenSupabase(process.env) : sqliteStorage;

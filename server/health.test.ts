@@ -18,5 +18,19 @@ test("sin variables de git el commit es null", () => {
   const body = healthPayload(new Date("2026-10-18T03:15:00.000Z"), { TZ: "" });
   assert.equal(body.tz, "UTC");
   assert.equal(body.commit, null);
-  assert.equal(body.version, "alexa-v3.3");
+  assert.equal(body.version, "alexa-v3.4");
+  assert.equal(body.store, "sqlite");
+});
+
+test("health dice supabase solo si están las dos variables", () => {
+  const conClave = healthPayload(new Date("2026-10-18T03:15:00.000Z"), {
+    SUPABASE_URL: "https://enypjatzskpnupiqfaoa.supabase.co",
+    SUPABASE_SERVICE_KEY: "sb_secret_test",
+  });
+  assert.equal(conClave.version, "alexa-v3.4");
+  assert.equal(conClave.store, "supabase");
+  const soloUrl = healthPayload(new Date("2026-10-18T03:15:00.000Z"), {
+    SUPABASE_URL: "https://enypjatzskpnupiqfaoa.supabase.co",
+  });
+  assert.equal(soloUrl.store, "sqlite");
 });

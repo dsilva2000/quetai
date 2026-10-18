@@ -24,8 +24,10 @@ export async function promptDeSesion(
   historial: { rol: string; contenido: string }[],
   canal: CanalConversacion,
 ): Promise<string> {
-  const perfil = storage.getPerfil(sessionId);
-  const memoria = storage.getMemoria(sessionId);
+  const [perfil, memoria] = await Promise.all([
+    storage.getPerfil(sessionId),
+    storage.getMemoria(sessionId),
+  ]);
   let noticias = "";
   try {
     const items = await obtenerTitulares(["farandula", "politica", "actualidad"], {
@@ -55,8 +57,10 @@ export function programarActualizacionMemoria(sessionId: string): void {
 }
 
 async function actualizarMemoria(sessionId: string): Promise<void> {
-  const previa = storage.getMemoria(sessionId);
-  const mensajes = storage.getMensajes(sessionId);
+  const [previa, mensajes] = await Promise.all([
+    storage.getMemoria(sessionId),
+    storage.getMensajes(sessionId),
+  ]);
   const lote = elegirMensajesParaMemoria(mensajes, previa?.hastaOrden ?? 0);
   if (!lote) return;
   const resumen = await completarTexto({
@@ -69,7 +73,7 @@ async function actualizarMemoria(sessionId: string): Promise<void> {
     model: modeloFallback(),
   });
   if (!resumen.trim()) return;
-  storage.saveMemoria(sessionId, resumen.trim(), lote.nuevoHasta);
+  await storage.saveMemoria(sessionId, resumen.trim(), lote.nuevoHasta);
 }
 
 /**
@@ -81,20 +85,24 @@ export async function conversar(
   mensaje: string,
   canal: CanalConversacion = "alexa",
 ): Promise<string> {
-  const usuario = storage.getUsuario(sessionId);
+  const [usuario, meds, historial] = await Promise.all([
+    storage.getUsuario(sessionId),
+    storage.getMedicamentos(sessionId),
+    storage.getMensajes(sessionId),
+    storage.getPerfil(sessionId),
+    storage.getMemoria(sessionId),
+  ]);
   if (!usuario) throw new Error("Sesión no encontrada");
 
-  const meds = storage.getMedicamentos(sessionId);
-  const historial = storage.getMensajes(sessionId);
   const orden = historial.length;
   const texto = mensaje.trim();
-  storage.addMensaje(sessionId, "user", texto, orden);
+  await storage.addMensaje(sessionId, "user", texto, orden);
 
   const inicio = Date.now();
   const systemPrompt = await promptDeSesion(sessionId, usuario.nombre, meds, historial, canal);
   const conv = armarContexto(usuario.nombre, historial, texto);
 
-  const tropiezo = tropiezoDe(usuario.nombre, storage.getPerfil(sessionId).apodo);
+  const tropiezo = tropiezoDe(usuario.nombre, (await storage.getPerfil(sessionId)).apodo);
   let respuesta = "";
   try {
     const presupuesto = canal === "alexa" ? timeoutAlexaMs() : undefined;
@@ -112,12 +120,12 @@ export async function conversar(
   if (!respuesta.trim()) respuesta = tropiezo;
   if (canal === "alexa") respuesta = acortarOraciones(respuesta, 3);
 
-  storage.addMensaje(sessionId, "assistant", respuesta, orden + 1);
+  await storage.addMensaje(sessionId, "assistant", respuesta, orden + 1);
 
   const med = detectarMedicamento(respuesta);
   if (med && med.nombre.length > 2) {
     const ya = meds.some((m) => m.nombre.toLowerCase() === med.nombre.toLowerCase());
-    if (!ya) storage.addMedicamento(sessionId, med.nombre, med.horario);
+    if (!ya) await storage.addMedicamento(sessionId, med.nombre, med.horario);
   }
 
   programarActualizacionMemoria(sessionId);

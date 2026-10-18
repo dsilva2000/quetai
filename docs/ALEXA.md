@@ -17,9 +17,26 @@ No pide cuenta ni contraseña. Una persona mayor no tiene que enlazar nada.
 
 ## Dónde se guarda todo
 
-Quetai **no usa Supabase**. El servidor (Express) guarda los datos en un archivo SQLite: `quetai.db`. La ruta la marca `DATA_DIR`. En Render tiene que ser `/app/data`, que es donde se monta el disco. Si `DATA_DIR` no está, el archivo cae en `/opt/render/project/src/data` y **se borra en cada deploy**.
+La memoria (nombre, apodo, perfil del cuidador, charla y resumen) vive en **Supabase Postgres** cuando Render tiene `SUPABASE_URL` y `SUPABASE_SERVICE_KEY`. El plan Free de Render borra el disco en cada deploy y al dormirse; por eso la base ya no depende de ese disco.
 
-El plan **Free no puede tener disco**. Render lo dice en su documentación: un web service gratuito tiene disco efímero, se apaga a los 15 minutos sin visitas y pierde los archivos locales al redesplegar, al reiniciar o al dormirse. El bloque `disk` de `render.yaml` no se aplica mientras el servicio siga en Free. v3.2 no borró filas: no hay `DROP` ni `DELETE` de `alexa_usuarios`. Lo que pasó con Queta es que el deploy nuevo arrancó con una base vacía.
+Si falta una de las dos variables, el servidor sigue con SQLite (`data/quetai.db`, o `DATA_DIR` en Render). Sirve para desarrollar en tu máquina. En Free, esa base se vacía igual que antes.
+
+Al arrancar, los logs dicen `{"evento":"db.store","store":"supabase"}` o `"sqlite"`. `/api/health` repite el mismo valor en `"store"` y la versión `"alexa-v3.4"`.
+
+### Pegar el esquema en Supabase (lo tiene que hacer Daniel)
+
+1. Entra al proyecto [enypjatzskpnupiqfaoa](https://supabase.com/dashboard/project/enypjatzskpnupiqfaoa) → **SQL Editor**.
+2. Abre `supabase/schema.sql` de este repo, copia **todo** el archivo y ejecútalo. Se puede correr otra vez: usa `create table if not exists` y activa RLS sin políticas públicas. La clave `sb_secret_...` salta RLS. La clave anónima no lee estas tablas.
+3. En Render → servicio `quetai` → **Environment**:
+   - `SUPABASE_URL` = `https://enypjatzskpnupiqfaoa.supabase.co` (ya viene en `render.yaml`)
+   - `SUPABASE_SERVICE_KEY` = la clave **secret** (`sb_secret_...`), no la anon. No la pongas en git.
+4. Guarda y espera el deploy. `/api/health` tiene que decir `"store":"supabase"`. Si dice `"sqlite"`, falta una variable y el próximo apagado de Free vuelve a olvidar a la gente.
+
+La base anterior de Queta no se puede recuperar: el disco Free ya se vació. Hay que volver a decir el nombre y el apodo. A partir de ahí, un deploy no los borra.
+
+### Disco de SQLite (solo si no usas Supabase)
+
+El plan **Free no puede tener disco**. Un web service gratuito se apaga a los 15 minutos y pierde los archivos locales. El bloque `disk` de `render.yaml` no se aplica mientras el servicio siga en Free.
 
 ### Dejar el disco puesto (lo tiene que hacer Daniel)
 
@@ -55,7 +72,7 @@ La sesión de un Echo es `alexa:` más el userId que envía Amazon. Así no se m
 1. Revisa el pull request y únelo a `master`.
 2. Render despliega solo la rama `master` (`render.yaml`, servicio `quetai`). El build **no compila** el servidor: solo hace `npm install` y recompila `better-sqlite3`. Lo que se ejecuta es `dist/index.cjs`, el bundle que está en git. Si ese archivo no entró en el merge, `/api/alexa` y `/privacidad` siguen devolviendo la página web.
 3. Espera a que el deploy quede en verde.
-4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3.3"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en una versión anterior, sigue corriendo el bundle viejo. El campo `model` dice qué modelo está configurado. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
+4. Abre en el navegador. `/api/health` tiene que incluir `"version": "alexa-v3.4"`, `"store": "supabase"` y un `"commit"` (el SHA que Render inyecta en `RENDER_GIT_COMMIT`). Si `version` no aparece, o sigue en una versión anterior, sigue corriendo el bundle viejo. Si `store` es `sqlite`, faltan las variables de Supabase. El campo `model` dice qué modelo está configurado. El perfil de cada persona se configura aparte: [PERFIL.md](./PERFIL.md).
    - `https://quetai.onrender.com/api/health` → debe decir `"status": "ok"`.
    - `https://quetai.onrender.com/api/alexa` → debe decir `"servicio": "quetai-alexa"` y `"verificacion": "activa"`.
    - `https://quetai.onrender.com/privacidad`
@@ -79,13 +96,15 @@ En Render → servicio `quetai` → Environment. No las pongas en git.
 | `ASSISTANT_NAME` | Cómo se presenta. Por defecto `Quetai`. La invocación de Alexa sigue siendo `mi quetai` | No |
 | `NEWS_ENABLED` | `true` para titulares de Google News. `false` los apaga | No |
 | `TZ` | `America/Lima` | Ya está en `render.yaml` |
-| `DATA_DIR` | `/app/data` | Sí, en Render. Sin esto la base no cae en el disco |
+| `DATA_DIR` | `/app/data` | Solo si no hay Supabase. Sin esto la base SQLite no cae en el disco |
+| `SUPABASE_URL` | `https://enypjatzskpnupiqfaoa.supabase.co` | Sí, junto con la clave, para que Free no borre la memoria |
+| `SUPABASE_SERVICE_KEY` | Clave `sb_secret_...` del proyecto | Sí. No es la anon. No va en git |
 
 `ALEXA_SKIP_VERIFICATION=true` apaga la comprobación de firma. Sirve solo si estás depurando con `curl` en tu máquina. **No lo actives en Render.** El simulador de Alexa sí firma las peticiones, así que no hace falta apagar nada para probar.
 
 El id de la skill lo copias en el paso 4. Guarda la variable y espera a que Render reinicie.
 
-En Fly.io, si despliegas ahí, configura los mismos secretos (`fly secrets set ALEXA_SKILL_ID=...`). No hace falta un secreto nuevo de Supabase: no hay proyecto Supabase.
+En Fly.io, si despliegas ahí, configura los mismos secretos (`fly secrets set ALEXA_SKILL_ID=... SUPABASE_URL=... SUPABASE_SERVICE_KEY=...`).
 
 ## 3. Crear la skill en la consola de Amazon
 
@@ -269,7 +288,7 @@ El endpoint HTTPS déjalo como en la consola. Un `ask deploy` completo puede int
 | Alexa dice que no existe la skill | Misma cuenta en el Echo y en la consola. Skill en Development. Idioma español. |
 | 400 solicitud no válida | Firma o reloj. URL exacta `/api/alexa`. Deploy nuevo. No desactives la verificación. |
 | 400 skill id no coincide | `ALEXA_SKILL_ID` en Render. |
-| Responde pero no recuerda al día siguiente | El plan sigue en Free, o `DATA_DIR` no es `/app/data`, o en los logs `db.ruta` dice `"montado":false`. Hay que pasar a Starter y montar el disco. Ver «Dejar el disco puesto». |
+| Responde pero no recuerda al día siguiente | `/api/health` tiene que decir `"store":"supabase"`. Si dice `sqlite`, falta `SUPABASE_URL` o `SUPABASE_SERVICE_KEY`, o no se pegó `supabase/schema.sql`. En Free el archivo local se borra al dormirse. |
 | No suena el recordatorio en el Echo | Permiso aceptado en la app de Alexa. La hora es de Lima (`TZ=America/Lima`). El plan gratuito de Render puede tardar en despertar; el aviso lo pronuncia Alexa, no el servidor, una vez creado. |
 | La respuesta tarda o sale el tropiezo | Mira el log `llm.error` en Render (clase, status, código, milisegundos; sin la clave). `/api/health` debe mostrar `model` `openai/gpt-oss-120b` si no cambiaste `LLM_MODEL`. |
 | No abre con «quetai» | La invocación es `mi quetai`. Di «Alexa, abre mi quetai». |

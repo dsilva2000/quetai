@@ -51,6 +51,12 @@ services:
       # filesystem on every deploy and after 15 minutes idle. See docs/ALEXA.md.
       - key: DATA_DIR
         value: /app/data
+      # Durable memory. Both must be set or the server stays on SQLite.
+      # SUPABASE_SERVICE_KEY is the sb_secret_... key. Do not commit it.
+      - key: SUPABASE_URL
+        value: https://enypjatzskpnupiqfaoa.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
     disk:
       name: quetai-data
       mountPath: /app/data
