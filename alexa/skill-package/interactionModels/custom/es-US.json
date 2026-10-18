@@ -230,7 +230,7 @@
             },
             {
               "name": "nombre",
-              "type": "AMAZON.SearchQuery"
+              "type": "NOMBRE_PROPIO"
             }
           ],
           "samples": [
